@@ -1,0 +1,22 @@
+import path from "path";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@entre-extremos/shared": path.resolve(__dirname, "../shared/index.ts"),
+    },
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      "/socket.io": {
+        target: "http://localhost:3001",
+        ws: true,
+      },
+    },
+  },
+});
