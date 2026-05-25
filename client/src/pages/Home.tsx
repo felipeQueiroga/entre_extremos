@@ -6,7 +6,7 @@ import { getStoredName, saveSession } from "../utils/session";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { createRoom, joinRoom, error, clearError, connected } = useGame();
+  const { createRoom, joinRoom, error, clearError, connected, connectionError } = useGame();
   const [name, setName] = useState(getStoredName());
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,9 +50,15 @@ export default function Home() {
         </p>
       </header>
 
-      {!connected && (
+      {!connected && !connectionError && (
         <p className="mb-4 rounded-lg bg-amber-900/40 px-4 py-2 text-center text-amber-200">
           Conectando ao servidor...
+        </p>
+      )}
+
+      {connectionError && (
+        <p className="mb-4 rounded-lg bg-rose-900/40 px-4 py-2 text-center text-rose-200">
+          {connectionError}
         </p>
       )}
 

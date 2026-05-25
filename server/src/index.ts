@@ -21,15 +21,58 @@ import { roomManager } from "./rooms";
 const PORT = Number(process.env.PORT) || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (origin === CLIENT_URL) return true;
+  if (/^http:\/\/localhost:\d+$/.test(origin)) return true;
+  if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+\.ngrok-free\.app$/i.test(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/i.test(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+\.ngrok\.io$/i.test(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+\.ngrok\.app$/i.test(origin)) return true;
+  return false;
+}
+
 const app = express();
-app.use(cors({ origin: CLIENT_URL }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin not allowed: ${origin}`));
+      }
+    },
+  })
+);
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/", (_req, res) => {
+  res.type("html").send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>Entre Extremos - API</title></head>
+<body style="font-family:sans-serif;max-width:480px;margin:2rem auto;padding:0 1rem">
+  <h1>Entre Extremos — Servidor</h1>
+  <p>Servidor online. O jogo roda no cliente:</p>
+  <p><a href="http://localhost:5173">http://localhost:5173</a></p>
+  <p><small>API: <a href="/health">/health</a></small></p>
+</body>
+</html>`);
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: CLIENT_URL },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin not allowed: ${origin}`));
+      }
+    },
+  },
 });
 
 function broadcastRoomState(roomCode: string): void {

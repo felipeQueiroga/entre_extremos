@@ -3,7 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -26,6 +26,7 @@ import {
 interface GameContextValue {
   socket: Socket | null;
   connected: boolean;
+  connectionError: string | null;
   state: ClientRoomState | null;
   error: string | null;
   winners: string[];
@@ -44,12 +45,20 @@ interface GameContextValue {
 
 const GameContext = createContext<GameContextValue | null>(null);
 
+const SOCKET_URL =
+  import.meta.env.VITE_SERVER_URL ??
+  (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
+
 function emitWithAck<TPayload, TResponse>(
   socket: Socket,
   event: string,
   payload: TPayload
 ): Promise<TResponse> {
   return new Promise((resolve, reject) => {
+    if (!socket.connected) {
+      reject(new Error("Sem conexão com o servidor."));
+      return;
+    }
     socket.emit(event, payload, (response: TResponse) => {
       resolve(response);
     });
@@ -58,23 +67,37 @@ function emitWithAck<TPayload, TResponse>(
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
+  const socketRef = useRef<Socket | null>(null);
+  const [socketReady, setSocketReady] = useState(false);
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<ClientRoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [winners, setWinners] = useState<string[]>([]);
-
-  const socket = useMemo(
-    () =>
-      io(window.location.origin, {
-        transports: ["websocket", "polling"],
-        autoConnect: true,
-      }),
-    []
-  );
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    const onConnect = () => setConnected(true);
+    const socket = io(SOCKET_URL, {
+      transports: ["polling", "websocket"],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 500,
+    });
+    socketRef.current = socket;
+    setSocketReady(true);
+
+    const onConnect = () => {
+      setConnected(true);
+      setConnectionError(null);
+    };
     const onDisconnect = () => setConnected(false);
+    const onConnectError = (err: Error) => {
+      setConnected(false);
+      setConnectionError(
+        "Não foi possível conectar ao servidor. Verifique se o servidor está rodando na porta 3001."
+      );
+      console.error("Socket connect error:", err.message);
+    };
     const onState = (next: ClientRoomState) => {
       setState(next);
       if (next.status !== "finished") setWinners([]);
@@ -87,26 +110,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
     socket.on(SERVER_EVENTS.GAME_STATE, onState);
     socket.on(SERVER_EVENTS.ROOM_ERROR, onError);
     socket.on(SERVER_EVENTS.GAME_OVER, onGameOver);
 
+    if (socket.connected) onConnect();
+
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.off(SERVER_EVENTS.GAME_STATE, onState);
       socket.off(SERVER_EVENTS.ROOM_ERROR, onError);
       socket.off(SERVER_EVENTS.GAME_OVER, onGameOver);
       socket.disconnect();
+      socketRef.current = null;
+      setSocketReady(false);
     };
-  }, [socket]);
+  }, []);
+
+  const getSocket = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      throw new Error("Sem conexão com o servidor.");
+    }
+    return socket;
+  }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
   const createRoom = useCallback(
     async (name: string, mode: GameMode = "couple") => {
       const response = await emitWithAck<RoomCreatePayload, ClientRoomState | null>(
-        socket,
+        getSocket(),
         CLIENT_EVENTS.ROOM_CREATE,
         { name, mode }
       );
@@ -114,13 +151,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setState(response);
       return response;
     },
-    [socket]
+    [getSocket]
   );
 
   const joinRoom = useCallback(
     async (code: string, name: string, playerId?: string) => {
       const response = await emitWithAck<RoomJoinPayload, ClientRoomState | null>(
-        socket,
+        getSocket(),
         CLIENT_EVENTS.ROOM_JOIN,
         { code, name, playerId }
       );
@@ -128,63 +165,61 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setState(response);
       return response;
     },
-    [socket]
+    [getSocket]
   );
 
   const leaveRoom = useCallback(() => {
-    socket.emit(CLIENT_EVENTS.ROOM_LEAVE);
+    socketRef.current?.emit(CLIENT_EVENTS.ROOM_LEAVE);
     setState(null);
     setWinners([]);
-  }, [socket]);
+  }, []);
 
-  const joinTeam = useCallback(
-    (team: "A" | "B") => {
-      socket.emit(CLIENT_EVENTS.PLAYER_JOIN_TEAM, { team } satisfies PlayerJoinTeamPayload);
-    },
-    [socket]
-  );
+  const joinTeam = useCallback((team: "A" | "B") => {
+    getSocket().emit(CLIENT_EVENTS.PLAYER_JOIN_TEAM, { team } satisfies PlayerJoinTeamPayload);
+  }, [getSocket]);
 
   const startGame = useCallback(() => {
-    socket.emit(CLIENT_EVENTS.GAME_START);
-  }, [socket]);
+    getSocket().emit(CLIENT_EVENTS.GAME_START);
+  }, [getSocket]);
 
   const submitClue = useCallback(
     (clue: string) => {
-      socket.emit(CLIENT_EVENTS.PSYCHIC_SUBMIT_CLUE, { clue } satisfies PsychicSubmitCluePayload);
+      getSocket().emit(CLIENT_EVENTS.PSYCHIC_SUBMIT_CLUE, { clue } satisfies PsychicSubmitCluePayload);
     },
-    [socket]
+    [getSocket]
   );
 
   const submitGuess = useCallback(
     (position: number) => {
-      socket.emit(CLIENT_EVENTS.PLAYER_SUBMIT_GUESS, {
+      getSocket().emit(CLIENT_EVENTS.PLAYER_SUBMIT_GUESS, {
         position,
       } satisfies PlayerSubmitGuessPayload);
     },
-    [socket]
+    [getSocket]
   );
 
   const submitDirection = useCallback(
     (direction: "left" | "right") => {
-      socket.emit(CLIENT_EVENTS.OPPONENT_SUBMIT_DIRECTION, {
+      getSocket().emit(CLIENT_EVENTS.OPPONENT_SUBMIT_DIRECTION, {
         direction,
       } satisfies OpponentSubmitDirectionPayload);
     },
-    [socket]
+    [getSocket]
   );
 
   const nextRound = useCallback(() => {
-    socket.emit(CLIENT_EVENTS.ROUND_NEXT);
-  }, [socket]);
+    getSocket().emit(CLIENT_EVENTS.ROUND_NEXT);
+  }, [getSocket]);
 
   const restartGame = useCallback(() => {
-    socket.emit(CLIENT_EVENTS.GAME_RESTART);
+    getSocket().emit(CLIENT_EVENTS.GAME_RESTART);
     setWinners([]);
-  }, [socket]);
+  }, [getSocket]);
 
   const value: GameContextValue = {
-    socket,
+    socket: socketReady ? socketRef.current : null,
     connected,
+    connectionError,
     state,
     error,
     winners,
