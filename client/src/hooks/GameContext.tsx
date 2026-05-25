@@ -22,6 +22,7 @@ import {
   type RoomErrorPayload,
   type RoomJoinPayload,
 } from "@entre-extremos/shared";
+import { getSocketUrl, isNgrokHost } from "../utils/socketUrl";
 
 interface GameContextValue {
   socket: Socket | null;
@@ -44,10 +45,6 @@ interface GameContextValue {
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
-
-const SOCKET_URL =
-  import.meta.env.VITE_SERVER_URL ??
-  (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
 
 function emitWithAck<TPayload, TResponse>(
   socket: Socket,
@@ -76,12 +73,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
+    const socketUrl = getSocketUrl();
+    const socket = io(socketUrl, {
       transports: ["polling", "websocket"],
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 15,
       reconnectionDelay: 500,
+      ...(isNgrokHost() && {
+        extraHeaders: { "ngrok-skip-browser-warning": "true" },
+      }),
     });
     socketRef.current = socket;
     setSocketReady(true);

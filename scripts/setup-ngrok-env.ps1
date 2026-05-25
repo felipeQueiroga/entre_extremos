@@ -34,7 +34,10 @@ $serverUrl = Get-HttpsUrl $serverTunnel
 $clientUrl = Get-HttpsUrl $clientTunnel
 
 $envFile = Join-Path $root "client\.env.local"
-"VITE_SERVER_URL=$serverUrl" | Set-Content -Path $envFile -Encoding utf8
+if (Test-Path $envFile) {
+  Remove-Item $envFile -Force
+  Write-Host "  Removido client\.env.local (nao necessario com proxy)"
+}
 
 $urlFile = Join-Path $root "ngrok-urls.txt"
 @(
@@ -47,8 +50,8 @@ Write-Host "========================================"
 Write-Host "  URLs do ngrok"
 Write-Host "========================================"
 Write-Host ""
-Write-Host "  Servidor (Socket.IO): $serverUrl"
-Write-Host "  Cliente (envie este link): $clientUrl"
+Write-Host "  Cliente (envie ESTE link): $clientUrl"
+Write-Host "  Servidor (uso interno/proxy): $serverUrl"
 Write-Host ""
-Write-Host "  Salvo em client\.env.local"
+Write-Host "  O cliente usa o link acima; Socket.IO passa pelo proxy do Vite."
 Write-Host "========================================"

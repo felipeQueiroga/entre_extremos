@@ -11,6 +11,25 @@ if errorlevel 1 (
   exit /b 1
 )
 
+ngrok config check >nul 2>&1
+if errorlevel 1 (
+  echo.
+  echo  ========================================
+  echo    ngrok precisa de autenticacao
+  echo  ========================================
+  echo.
+  echo  1. Crie conta gratis: https://dashboard.ngrok.com/signup
+  echo  2. Copie seu authtoken: https://dashboard.ngrok.com/get-started/your-authtoken
+  echo  3. Execute no terminal ^(substitua SEU_TOKEN^):
+  echo.
+  echo       ngrok config add-authtoken SEU_TOKEN
+  echo.
+  echo  4. Rode este script novamente.
+  echo.
+  pause
+  exit /b 1
+)
+
 echo.
 echo  ========================================
 echo    Entre Extremos - Modo online (ngrok)
@@ -24,7 +43,15 @@ echo.
 pause
 
 echo  Abrindo ngrok (cliente 5173 + servidor 3001)...
-start "ngrok" cmd /k ngrok start --all --config "%~dp0ngrok.yml"
+if not exist "%~dp0ngrok.auth.yml" (
+  echo.
+  echo  ERRO: Arquivo ngrok.auth.yml nao encontrado.
+  echo  Execute: ngrok config add-authtoken SEU_TOKEN
+  echo  Ou crie ngrok.auth.yml com sua chave.
+  pause
+  exit /b 1
+)
+start "ngrok" cmd /k ngrok start --all --config "%~dp0ngrok.auth.yml" --config "%~dp0ngrok.yml"
 
 echo  Aguardando tuneis...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\setup-ngrok-env.ps1"
@@ -36,15 +63,17 @@ if errorlevel 1 (
 )
 
 echo.
-echo  Reiniciando cliente com URL do servidor ngrok...
+echo  IMPORTANTE: Envie apenas o link do CLIENTE (porta 5173).
+echo  Ambos devem abrir o MESMO link ngrok do cliente.
+echo.
+echo  Reiniciando cliente para aplicar alteracoes...
 call :killPort 5173
 call :killPort 5174
 timeout /t 1 /nobreak >nul
 
-for /f "tokens=1,* delims==" %%a in ('findstr "SERVIDOR=" ngrok-urls.txt') do set VITE_SERVER_URL=%%b
 for /f "tokens=1,* delims==" %%a in ('findstr "CLIENTE=" ngrok-urls.txt') do set LINK_NAMORADA=%%b
 
-start "cliente-ngrok" cmd /k "cd /d "%~dp0" && set VITE_SERVER_URL=%VITE_SERVER_URL% && npm run dev -w client"
+start "cliente-ngrok" cmd /k "cd /d "%~dp0" && npm run dev -w client"
 
 echo.
 echo  ========================================

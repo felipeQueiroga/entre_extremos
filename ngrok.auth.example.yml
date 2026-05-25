@@ -1,0 +1,3 @@
+version: "2"
+# Copie para ngrok.auth.yml e coloque seu token:
+# authtoken: SEU_TOKEN_AQUI
