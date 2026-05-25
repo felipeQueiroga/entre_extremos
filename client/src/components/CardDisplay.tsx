@@ -1,7 +1,7 @@
-import type { Card } from "@entre-extremos/shared";
+import type { ExtremeCard } from "@entre-extremos/shared";
 
 interface CardDisplayProps {
-  card: Card;
+  card: ExtremeCard;
 }
 
 export default function CardDisplay({ card }: CardDisplayProps) {

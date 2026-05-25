@@ -11,6 +11,7 @@ import { io, type Socket } from "socket.io-client";
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type CardColor,
   type CardSource,
   type CardTheme,
   type ChatMessage,
@@ -23,9 +24,13 @@ import {
   type PlayerSubmitGuessPayload,
   type PsychicSubmitCluePayload,
   type PsychicSubmitThemePayload,
+  type FourColorsChallengeOnePayload,
+  type FourColorsChooseColorPayload,
+  type FourColorsPlayCardPayload,
   type RoomCreatePayload,
   type RoomErrorPayload,
   type RoomJoinPayload,
+  type SelectedGame,
 } from "@entre-extremos/shared";
 import { getSocketUrl, isNgrokHost } from "../utils/socketUrl";
 
@@ -40,6 +45,7 @@ interface GameContextValue {
   clearError: () => void;
   createRoom: (
     name: string,
+    selectedGame?: SelectedGame,
     mode?: GameMode,
     cardSource?: CardSource,
     cardThemes?: CardTheme[]
@@ -55,6 +61,14 @@ interface GameContextValue {
   submitDirection: (direction: "left" | "right") => void;
   nextRound: () => void;
   restartGame: () => void;
+  fourColorsStart: () => void;
+  fourColorsPlayCard: (cardId: string) => void;
+  fourColorsDrawCard: () => void;
+  fourColorsChooseColor: (color: CardColor) => void;
+  fourColorsCallOne: () => void;
+  fourColorsChallengeOne: (targetPlayerId: string) => void;
+  fourColorsPassTurn: () => void;
+  fourColorsRestart: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -169,6 +183,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const createRoom = useCallback(
     async (
       name: string,
+      selectedGame: SelectedGame = "entre-extremos",
       mode: GameMode = "couple",
       cardSource: CardSource = "deck",
       cardThemes?: CardTheme[]
@@ -176,7 +191,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const response = await emitWithAck<RoomCreatePayload, ClientRoomState | null>(
         getSocket(),
         CLIENT_EVENTS.ROOM_CREATE,
-        { name, mode, cardSource, cardThemes }
+        { name, selectedGame, mode, cardSource, cardThemes }
       );
       if (!response) throw new Error("Não foi possível criar a sala.");
       setState(response);
@@ -265,6 +280,54 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinners([]);
   }, [getSocket]);
 
+  const fourColorsStart = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_START);
+  }, [getSocket]);
+
+  const fourColorsPlayCard = useCallback(
+    (cardId: string) => {
+      getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_PLAY_CARD, {
+        cardId,
+      } satisfies FourColorsPlayCardPayload);
+    },
+    [getSocket]
+  );
+
+  const fourColorsDrawCard = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_DRAW_CARD);
+  }, [getSocket]);
+
+  const fourColorsChooseColor = useCallback(
+    (color: CardColor) => {
+      getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_CHOOSE_COLOR, {
+        color,
+      } satisfies FourColorsChooseColorPayload);
+    },
+    [getSocket]
+  );
+
+  const fourColorsCallOne = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_CALL_ONE);
+  }, [getSocket]);
+
+  const fourColorsChallengeOne = useCallback(
+    (targetPlayerId: string) => {
+      getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_CHALLENGE_ONE, {
+        targetPlayerId,
+      } satisfies FourColorsChallengeOnePayload);
+    },
+    [getSocket]
+  );
+
+  const fourColorsPassTurn = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_PASS_TURN);
+  }, [getSocket]);
+
+  const fourColorsRestart = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_RESTART);
+    setWinners([]);
+  }, [getSocket]);
+
   const value: GameContextValue = {
     socket: socketReady ? socketRef.current : null,
     connected,
@@ -286,6 +349,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     submitDirection,
     nextRound,
     restartGame,
+    fourColorsStart,
+    fourColorsPlayCard,
+    fourColorsDrawCard,
+    fourColorsChooseColor,
+    fourColorsCallOne,
+    fourColorsChallengeOne,
+    fourColorsPassTurn,
+    fourColorsRestart,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

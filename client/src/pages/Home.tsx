@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   CARD_THEME_OPTIONS,
   DEFAULT_CARD_THEMES,
+  GAME_OPTIONS,
   type CardSource,
   type CardTheme,
   type GameMode,
+  type SelectedGame,
 } from "@entre-extremos/shared";
 import { useGame } from "../hooks/GameContext";
 import { getStoredName, saveSession } from "../utils/session";
@@ -16,6 +18,7 @@ export default function Home() {
   const [name, setName] = useState(getStoredName());
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<SelectedGame>("entre-extremos");
   const [mode, setMode] = useState<GameMode>("couple");
   const [cardSource, setCardSource] = useState<CardSource>("deck");
   const [cardThemes, setCardThemes] = useState<CardTheme[]>([...DEFAULT_CARD_THEMES]);
@@ -33,7 +36,7 @@ export default function Home() {
     setLoading(true);
     clearError();
     try {
-      const state = await createRoom(name.trim(), mode, cardSource, cardThemes);
+      const state = await createRoom(name.trim(), selectedGame, mode, cardSource, cardThemes);
       saveSession(state.playerId, name.trim(), state.code);
       navigate(`/lobby/${state.code}`);
     } finally {
@@ -95,25 +98,55 @@ export default function Home() {
             className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
             placeholder="Como quer ser chamado?"
           />
-          <label className="mb-2 block text-sm text-slate-400">Modo</label>
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as GameMode)}
-            className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
-          >
-            <option value="couple">Casal (2 jogadores)</option>
-            <option value="teams">Times (vários jogadores)</option>
-          </select>
-          <label className="mb-2 block text-sm text-slate-400">Tema da rodada</label>
-          <select
-            value={cardSource}
-            onChange={(e) => setCardSource(e.target.value as CardSource)}
-            className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
-          >
-            <option value="deck">Baralho (cartas sorteadas)</option>
-            <option value="free">Livre (psíquico define o tema)</option>
-          </select>
-          {cardSource === "deck" && (
+          <label className="mb-2 block text-sm text-slate-400">Jogo</label>
+          <div className="mb-4 grid gap-2">
+            {GAME_OPTIONS.map((game) => (
+              <label
+                key={game.id}
+                className={`cursor-pointer rounded-xl border px-4 py-3 ${
+                  selectedGame === game.id
+                    ? "border-indigo-500 bg-indigo-950/40"
+                    : "border-slate-800 bg-slate-950"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="selectedGame"
+                  value={game.id}
+                  checked={selectedGame === game.id}
+                  onChange={() => setSelectedGame(game.id)}
+                  className="sr-only"
+                />
+                <span className="block font-semibold">{game.label}</span>
+                <span className="text-sm text-slate-400">{game.description}</span>
+              </label>
+            ))}
+          </div>
+
+          {selectedGame === "entre-extremos" && (
+            <>
+              <label className="mb-2 block text-sm text-slate-400">Modo</label>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as GameMode)}
+                className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
+              >
+                <option value="couple">Casal (2 jogadores)</option>
+                <option value="teams">Times (vários jogadores)</option>
+              </select>
+              <label className="mb-2 block text-sm text-slate-400">Tema da rodada</label>
+              <select
+                value={cardSource}
+                onChange={(e) => setCardSource(e.target.value as CardSource)}
+                className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
+              >
+                <option value="deck">Baralho (cartas sorteadas)</option>
+                <option value="free">Livre (psíquico define o tema)</option>
+              </select>
+            </>
+          )}
+
+          {selectedGame === "entre-extremos" && cardSource === "deck" && (
             <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
@@ -153,7 +186,7 @@ export default function Home() {
               loading ||
               !connected ||
               !name.trim() ||
-              (cardSource === "deck" && cardThemes.length === 0)
+              (selectedGame === "entre-extremos" && cardSource === "deck" && cardThemes.length === 0)
             }
             className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-500 disabled:opacity-40"
           >

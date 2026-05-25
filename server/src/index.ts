@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type CardColor,
   type CardSource,
   type CardTheme,
   type ChatMessage,
@@ -17,9 +18,13 @@ import {
   type PlayerSubmitGuessPayload,
   type PsychicSubmitCluePayload,
   type PsychicSubmitThemePayload,
+  type FourColorsChallengeOnePayload,
+  type FourColorsChooseColorPayload,
+  type FourColorsPlayCardPayload,
   type RoomCreatePayload,
   type RoomJoinPayload,
   type RoomReconnectPayload,
+  type SelectedGame,
 } from "@entre-extremos/shared";
 import { roomManager } from "./rooms";
 
@@ -112,10 +117,11 @@ roomManager.setBroadcast(broadcastRoomState);
 
 io.on("connection", (socket) => {
   socket.on(CLIENT_EVENTS.ROOM_CREATE, (payload: RoomCreatePayload, ack?: (data: ClientRoomState | null) => void) => {
+    const selectedGame: SelectedGame = payload.selectedGame ?? "entre-extremos";
     const mode: GameMode = payload.mode ?? "couple";
     const cardSource: CardSource = payload.cardSource ?? "deck";
     const cardThemes: CardTheme[] | undefined = payload.cardThemes;
-    const { room, player } = roomManager.createRoom(payload.name, mode, cardSource, cardThemes);
+    const { room, player } = roomManager.createRoom(payload.name, selectedGame, mode, cardSource, cardThemes);
     roomManager.bindSocket(socket.id, player.id);
     socket.join(room.code);
     socket.join(player.id);
@@ -193,6 +199,20 @@ io.on("connection", (socket) => {
   });
 
   socket.on(CLIENT_EVENTS.GAME_START, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.startGame(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_START, () => {
     const playerId = roomManager.getPlayerIdBySocket(socket.id);
     if (!playerId) return;
 
@@ -293,6 +313,105 @@ io.on("connection", (socket) => {
   });
 
   socket.on(CLIENT_EVENTS.GAME_RESTART, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.restartGame(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_PLAY_CARD, (payload: FourColorsPlayCardPayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.playFourColorsCard(playerId, payload.cardId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_DRAW_CARD, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.drawFourColorsCard(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_CHOOSE_COLOR, (payload: FourColorsChooseColorPayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const color: CardColor = payload.color;
+    const result = roomManager.chooseFourColorsColor(playerId, color);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_CALL_ONE, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.callFourColorsOne(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_CHALLENGE_ONE, (payload: FourColorsChallengeOnePayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.challengeFourColorsOne(playerId, payload.targetPlayerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_PASS_TURN, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.passFourColorsTurn(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.FOUR_COLORS_RESTART, () => {
     const playerId = roomManager.getPlayerIdBySocket(socket.id);
     if (!playerId) return;
 

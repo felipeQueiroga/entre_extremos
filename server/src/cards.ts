@@ -1,12 +1,12 @@
 import {
   CARD_THEME_OPTIONS,
   DEFAULT_CARD_THEMES,
-  type Card,
   type CardTheme,
+  type ExtremeCard,
 } from "@entre-extremos/shared";
 
-type CardPair = Omit<Card, "id">;
-type ThemedCard = Card & { theme: CardTheme };
+type CardPair = Omit<ExtremeCard, "id">;
+type ThemedCard = ExtremeCard & { theme: CardTheme };
 
 export const CARD_DECKS: Record<CardTheme, CardPair[]> = {
   relacionamento: [
@@ -175,7 +175,7 @@ function cardsForThemes(themes: CardTheme[]): ThemedCard[] {
 
 export const CARDS: ThemedCard[] = cardsForThemes([...CARD_THEME_IDS]);
 
-export function pickRandomCard(usedCardIds: string[], themes?: CardTheme[]): Card {
+export function pickRandomCard(usedCardIds: string[], themes?: CardTheme[]): ExtremeCard {
   const selectedThemes = normalizeCardThemes(themes);
   const cards = cardsForThemes(selectedThemes);
   const available = cards.filter((card) => !usedCardIds.includes(card.id));

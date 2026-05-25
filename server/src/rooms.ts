@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import type {
   CardSource,
   CardTheme,
+  CardColor,
   ChatMessage,
   ClientRoomState,
   ClientRoundState,
@@ -9,9 +10,20 @@ import type {
   Player,
   RoomState,
   RoundState,
+  SelectedGame,
   Team,
 } from "@entre-extremos/shared";
 import { normalizeCardThemes, pickRandomCard, randomTargetPosition } from "./cards";
+import {
+  callOne,
+  challengeOne,
+  chooseColor,
+  drawCard,
+  passTurn,
+  playCard,
+  startFourColorsGame,
+  toClientFourColorsState,
+} from "./fourColors";
 import {
   calculateRoundResult,
   getTeamWinners,
@@ -51,6 +63,7 @@ export class RoomManager {
 
   createRoom(
     name: string,
+    selectedGame: SelectedGame = "entre-extremos",
     mode: GameMode = "couple",
     cardSource: CardSource = "deck",
     cardThemes?: CardTheme[]
@@ -67,8 +80,9 @@ export class RoomManager {
       code,
       players: [player],
       score: { [player.id]: 0 },
-      teamScore: mode === "teams" ? { A: 0, B: 1 } : undefined,
+      teamScore: selectedGame === "entre-extremos" && mode === "teams" ? { A: 0, B: 0 } : undefined,
       status: "lobby",
+      selectedGame,
       mode,
       cardSource,
       cardThemes: normalizeCardThemes(cardThemes),
@@ -96,7 +110,12 @@ export class RoomManager {
       return { error: "A partida já começou." };
     }
 
-    const maxPlayers = room.mode === "couple" ? MAX_COUPLE_PLAYERS : MAX_TEAM_PLAYERS;
+    const maxPlayers =
+      room.selectedGame === "quatro-cores"
+        ? MAX_TEAM_PLAYERS
+        : room.mode === "couple"
+          ? MAX_COUPLE_PLAYERS
+          : MAX_TEAM_PLAYERS;
     const connectedCount = room.players.filter((p) => p.connected).length;
 
     if (playerId) {
@@ -205,11 +224,15 @@ export class RoomManager {
     if (!host?.isHost) return { error: "Apenas o host pode iniciar." };
 
     const connected = room.players.filter((p) => p.connected);
-    if (room.mode === "couple" && connected.length < 2) {
+    if (room.selectedGame === "quatro-cores") {
+      if (connected.length < 2) {
+        return { error: "São necessários pelo menos 2 jogadores." };
+      }
+    } else if (room.mode === "couple" && connected.length < 2) {
       return { error: "São necessários 2 jogadores." };
     }
 
-    if (room.mode === "teams") {
+    if (room.selectedGame === "entre-extremos" && room.mode === "teams") {
       const teamA = connected.filter((p) => p.team === "A");
       const teamB = connected.filter((p) => p.team === "B");
       if (teamA.length === 0 || teamB.length === 0) {
@@ -223,7 +246,11 @@ export class RoomManager {
       room.score[p.id] = 0;
     });
     if (room.teamScore) {
-      room.teamScore = { A: 0, B: 1 };
+      room.teamScore = { A: 0, B: 0 };
+    }
+
+    if (room.selectedGame === "quatro-cores") {
+      return startFourColorsGame(room);
     }
 
     this.startRound(room);
@@ -261,6 +288,11 @@ export class RoomManager {
         phase: "psychic_theme",
       };
       room.currentRound = round;
+      room.gameState = {
+        kind: "entre-extremos",
+        currentRound: round,
+        usedCardIds: room.usedCardIds,
+      };
       return;
     }
 
@@ -278,6 +310,11 @@ export class RoomManager {
     };
 
     room.currentRound = round;
+    room.gameState = {
+      kind: "entre-extremos",
+      currentRound: round,
+      usedCardIds: room.usedCardIds,
+    };
   }
 
   submitTheme(playerId: string, left: string, right: string): { error?: string } {
@@ -505,8 +542,9 @@ export class RoomManager {
       room.score[p.id] = 0;
     });
     if (room.teamScore) {
-      room.teamScore = { A: 0, B: 1 };
+      room.teamScore = { A: 0, B: 0 };
     }
+    room.gameState = undefined;
     return {};
   }
 
@@ -518,6 +556,9 @@ export class RoomManager {
   }
 
   getWinnersForRoom(room: RoomState): string[] {
+    if (room.selectedGame === "quatro-cores" && room.gameState?.kind === "four-colors") {
+      return room.gameState.winnerId ? [room.gameState.winnerId] : [];
+    }
     return getWinners(room.score, room.winningScore);
   }
 
@@ -563,14 +604,55 @@ export class RoomManager {
       score: room.score,
       teamScore: room.teamScore,
       status: room.status,
+      selectedGame: room.selectedGame,
       mode: room.mode,
       cardSource: room.cardSource,
       cardThemes: room.cardThemes,
       messages: room.messages,
       currentRound: clientRound,
+      gameState:
+        room.selectedGame === "quatro-cores"
+          ? toClientFourColorsState(room, playerId)
+          : { kind: "entre-extremos", currentRound: clientRound },
       winningScore: room.winningScore,
       playerId,
     };
+  }
+
+  playFourColorsCard(playerId: string, cardId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return playCard(room, playerId, cardId);
+  }
+
+  drawFourColorsCard(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return drawCard(room, playerId);
+  }
+
+  passFourColorsTurn(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return passTurn(room, playerId);
+  }
+
+  chooseFourColorsColor(playerId: string, color: CardColor): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return chooseColor(room, playerId, color);
+  }
+
+  callFourColorsOne(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return callOne(room, playerId);
+  }
+
+  challengeFourColorsOne(playerId: string, targetPlayerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return challengeOne(room, playerId, targetPlayerId);
   }
 }
 

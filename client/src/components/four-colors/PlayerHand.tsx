@@ -1,0 +1,39 @@
+import type { Card as FourColorsCard } from "@entre-extremos/shared";
+import Card from "./Card";
+
+interface PlayerHandProps {
+  cards: FourColorsCard[];
+  playableCardIds: Set<string>;
+  isTurn: boolean;
+  onPlayCard: (cardId: string) => void;
+}
+
+export default function PlayerHand({
+  cards,
+  playableCardIds,
+  isTurn,
+  onPlayCard,
+}: PlayerHandProps) {
+  return (
+    <section className="rounded-2xl bg-slate-900 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Sua mão</h2>
+        <span className="text-sm text-slate-400">{cards.length} carta(s)</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-3">
+        {cards.map((card) => {
+          const playable = isTurn && playableCardIds.has(card.id);
+          return (
+            <Card
+              key={card.id}
+              card={card}
+              playable={playable}
+              disabled={!playable}
+              onClick={() => onPlayCard(card.id)}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}

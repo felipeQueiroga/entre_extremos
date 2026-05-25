@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CARD_THEME_OPTIONS } from "@entre-extremos/shared";
+import { CARD_THEME_OPTIONS, GAME_OPTIONS } from "@entre-extremos/shared";
 import PlayerList from "../components/PlayerList";
 import RoomChat from "../components/RoomChat";
 import { useGame } from "../hooks/GameContext";
@@ -51,12 +51,16 @@ export default function Lobby() {
     .map((theme) => CARD_THEME_OPTIONS.find((option) => option.id === theme)?.label)
     .filter(Boolean)
     .join(", ");
+  const selectedGameLabel =
+    GAME_OPTIONS.find((game) => game.id === state.selectedGame)?.label ?? "Entre Extremos";
   const canStart =
-    state.mode === "couple"
+    state.selectedGame === "quatro-cores"
       ? connectedCount >= 2
-      : connectedCount >= 2 &&
-        state.players.some((p) => p.team === "A" && p.connected) &&
-        state.players.some((p) => p.team === "B" && p.connected);
+      : state.mode === "couple"
+        ? connectedCount >= 2
+        : connectedCount >= 2 &&
+          state.players.some((p) => p.team === "A" && p.connected) &&
+          state.players.some((p) => p.team === "B" && p.connected);
 
   async function copyCode() {
     if (!state) return;
@@ -73,10 +77,15 @@ export default function Lobby() {
             <h1 className="text-3xl font-bold">Lobby</h1>
             <p className="mt-2 text-slate-400">Compartilhe o código com quem vai jogar</p>
             <p className="mt-1 text-sm text-slate-500">
-              Tema: {state.cardSource === "free" ? "Livre" : "Baralho"} · Modo:{" "}
-              {state.mode === "couple" ? "Casal" : "Times"}
+              Jogo: {selectedGameLabel}
             </p>
-            {state.cardSource === "deck" && (
+            {state.selectedGame === "entre-extremos" && (
+              <p className="mt-1 text-sm text-slate-500">
+                Tema: {state.cardSource === "free" ? "Livre" : "Baralho"} · Modo:{" "}
+                {state.mode === "couple" ? "Casal" : "Times"}
+              </p>
+            )}
+            {state.selectedGame === "entre-extremos" && state.cardSource === "deck" && (
               <p className="mt-1 text-sm text-slate-500">
                 Grupos: {themeLabels || "Relacionamento, Pets, Signos, Viagem, Primeiro encontro"}
               </p>
@@ -113,7 +122,7 @@ export default function Lobby() {
             )}
           </section>
 
-          {state.mode === "teams" && (
+          {state.selectedGame === "entre-extremos" && state.mode === "teams" && (
             <section className="mb-8 rounded-2xl bg-slate-900 p-6">
               <h2 className="mb-4 text-lg font-semibold">Escolha seu time</h2>
               <div className="grid grid-cols-2 gap-4">

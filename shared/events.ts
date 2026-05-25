@@ -1,10 +1,12 @@
 import type {
   CardSource,
   CardTheme,
+  CardColor,
   ChatMessage,
   ClientRoomState,
   Direction,
   GameMode,
+  SelectedGame,
 } from "./types";
 
 export const SERVER_EVENTS = {
@@ -30,10 +32,19 @@ export const CLIENT_EVENTS = {
   ROUND_NEXT: "round:next",
   GAME_RESTART: "game:restart",
   CHAT_SEND: "chat:send",
+  FOUR_COLORS_START: "fourColors:start",
+  FOUR_COLORS_PLAY_CARD: "fourColors:playCard",
+  FOUR_COLORS_DRAW_CARD: "fourColors:drawCard",
+  FOUR_COLORS_CHOOSE_COLOR: "fourColors:chooseColor",
+  FOUR_COLORS_CALL_ONE: "fourColors:callOne",
+  FOUR_COLORS_CHALLENGE_ONE: "fourColors:challengeOne",
+  FOUR_COLORS_PASS_TURN: "fourColors:passTurn",
+  FOUR_COLORS_RESTART: "fourColors:restart",
 } as const;
 
 export interface RoomCreatePayload {
   name: string;
+  selectedGame?: SelectedGame;
   mode?: GameMode;
   cardSource?: CardSource;
   cardThemes?: CardTheme[];
@@ -73,6 +84,18 @@ export interface OpponentSubmitDirectionPayload {
 
 export interface ChatSendPayload {
   text: string;
+}
+
+export interface FourColorsPlayCardPayload {
+  cardId: string;
+}
+
+export interface FourColorsChooseColorPayload {
+  color: CardColor;
+}
+
+export interface FourColorsChallengeOnePayload {
+  targetPlayerId: string;
 }
 
 export interface RoomErrorPayload {
