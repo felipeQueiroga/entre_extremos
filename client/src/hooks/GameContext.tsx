@@ -11,6 +11,10 @@ import { io, type Socket } from "socket.io-client";
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type CardSource,
+  type CardTheme,
+  type ChatMessage,
+  type ChatSendPayload,
   type ClientRoomState,
   type GameMode,
   type GameOverPayload,
@@ -18,6 +22,7 @@ import {
   type PlayerJoinTeamPayload,
   type PlayerSubmitGuessPayload,
   type PsychicSubmitCluePayload,
+  type PsychicSubmitThemePayload,
   type RoomCreatePayload,
   type RoomErrorPayload,
   type RoomJoinPayload,
@@ -29,15 +34,23 @@ interface GameContextValue {
   connected: boolean;
   connectionError: string | null;
   state: ClientRoomState | null;
+  messages: ChatMessage[];
   error: string | null;
   winners: string[];
   clearError: () => void;
-  createRoom: (name: string, mode?: GameMode) => Promise<ClientRoomState>;
+  createRoom: (
+    name: string,
+    mode?: GameMode,
+    cardSource?: CardSource,
+    cardThemes?: CardTheme[]
+  ) => Promise<ClientRoomState>;
   joinRoom: (code: string, name: string, playerId?: string) => Promise<ClientRoomState>;
   leaveRoom: () => void;
   joinTeam: (team: "A" | "B") => void;
   startGame: () => void;
+  submitTheme: (left: string, right: string) => void;
   submitClue: (clue: string) => void;
+  sendChat: (text: string) => void;
   submitGuess: (position: number) => void;
   submitDirection: (direction: "left" | "right") => void;
   nextRound: () => void;
@@ -70,6 +83,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ClientRoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [winners, setWinners] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,7 +115,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
     const onState = (next: ClientRoomState) => {
       setState(next);
+      setMessages(next.messages ?? []);
       if (next.status !== "finished") setWinners([]);
+    };
+    const onChatMessage = (msg: ChatMessage) => {
+      setMessages((prev) => [...prev, msg].slice(-50));
+    };
+    const onChatHistory = (history: ChatMessage[]) => {
+      setMessages(history);
     };
     const onError = (payload: RoomErrorPayload) => setError(payload.message);
     const onGameOver = (payload: GameOverPayload) => {
@@ -115,6 +136,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on(SERVER_EVENTS.GAME_STATE, onState);
     socket.on(SERVER_EVENTS.ROOM_ERROR, onError);
     socket.on(SERVER_EVENTS.GAME_OVER, onGameOver);
+    socket.on(SERVER_EVENTS.CHAT_MESSAGE, onChatMessage);
+    socket.on(SERVER_EVENTS.CHAT_HISTORY, onChatHistory);
 
     if (socket.connected) onConnect();
 
@@ -125,6 +148,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off(SERVER_EVENTS.GAME_STATE, onState);
       socket.off(SERVER_EVENTS.ROOM_ERROR, onError);
       socket.off(SERVER_EVENTS.GAME_OVER, onGameOver);
+      socket.off(SERVER_EVENTS.CHAT_MESSAGE, onChatMessage);
+      socket.off(SERVER_EVENTS.CHAT_HISTORY, onChatHistory);
       socket.disconnect();
       socketRef.current = null;
       setSocketReady(false);
@@ -142,11 +167,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const clearError = useCallback(() => setError(null), []);
 
   const createRoom = useCallback(
-    async (name: string, mode: GameMode = "couple") => {
+    async (
+      name: string,
+      mode: GameMode = "couple",
+      cardSource: CardSource = "deck",
+      cardThemes?: CardTheme[]
+    ) => {
       const response = await emitWithAck<RoomCreatePayload, ClientRoomState | null>(
         getSocket(),
         CLIENT_EVENTS.ROOM_CREATE,
-        { name, mode }
+        { name, mode, cardSource, cardThemes }
       );
       if (!response) throw new Error("Não foi possível criar a sala.");
       setState(response);
@@ -173,6 +203,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socketRef.current?.emit(CLIENT_EVENTS.ROOM_LEAVE);
     setState(null);
     setWinners([]);
+    setMessages([]);
   }, []);
 
   const joinTeam = useCallback((team: "A" | "B") => {
@@ -183,9 +214,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
     getSocket().emit(CLIENT_EVENTS.GAME_START);
   }, [getSocket]);
 
+  const submitTheme = useCallback(
+    (left: string, right: string) => {
+      getSocket().emit(CLIENT_EVENTS.PSYCHIC_SUBMIT_THEME, {
+        left,
+        right,
+      } satisfies PsychicSubmitThemePayload);
+    },
+    [getSocket]
+  );
+
   const submitClue = useCallback(
     (clue: string) => {
       getSocket().emit(CLIENT_EVENTS.PSYCHIC_SUBMIT_CLUE, { clue } satisfies PsychicSubmitCluePayload);
+    },
+    [getSocket]
+  );
+
+  const sendChat = useCallback(
+    (text: string) => {
+      getSocket().emit(CLIENT_EVENTS.CHAT_SEND, { text } satisfies ChatSendPayload);
     },
     [getSocket]
   );
@@ -222,6 +270,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     connected,
     connectionError,
     state,
+    messages,
     error,
     winners,
     clearError,
@@ -230,7 +279,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     leaveRoom,
     joinTeam,
     startGame,
+    submitTheme,
     submitClue,
+    sendChat,
     submitGuess,
     submitDirection,
     nextRound,

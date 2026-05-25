@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ScaleSlider from "./ScaleSlider";
+import GameDial from "./GameDial";
 
 interface GuesserViewProps {
   clue: string;
@@ -17,9 +17,14 @@ export default function GuesserView({ clue, leftLabel, rightLabel, onSubmit }: G
       <p className="rounded-lg bg-slate-900 px-4 py-3 text-lg">
         Dica: <span className="font-semibold text-white">{clue}</span>
       </p>
+      <p className="text-sm text-slate-400">
+        Arraste o ponteiro no mostrador até onde acha que o alvo está entre os dois extremos.
+      </p>
 
-      <ScaleSlider
-        value={position}
+      <GameDial
+        mode="guess"
+        pointerValue={position}
+        revealed={false}
         onChange={setPosition}
         leftLabel={leftLabel}
         rightLabel={rightLabel}

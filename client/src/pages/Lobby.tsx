@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { CARD_THEME_OPTIONS } from "@entre-extremos/shared";
 import PlayerList from "../components/PlayerList";
+import RoomChat from "../components/RoomChat";
 import { useGame } from "../hooks/GameContext";
 import { isHost, useRoomRedirect } from "../hooks/useGameHelpers";
 import {
@@ -45,6 +47,10 @@ export default function Lobby() {
   }
 
   const connectedCount = state.players.filter((p) => p.connected).length;
+  const themeLabels = state.cardThemes
+    .map((theme) => CARD_THEME_OPTIONS.find((option) => option.id === theme)?.label)
+    .filter(Boolean)
+    .join(", ");
   const canStart =
     state.mode === "couple"
       ? connectedCount >= 2
@@ -60,81 +66,98 @@ export default function Lobby() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl px-4 py-10">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-bold">Lobby</h1>
-        <p className="mt-2 text-slate-400">Compartilhe o código com quem vai jogar</p>
-      </header>
+    <div className="mx-auto min-h-screen max-w-5xl px-4 py-10">
+      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+        <div>
+          <header className="mb-8 text-center">
+            <h1 className="text-3xl font-bold">Lobby</h1>
+            <p className="mt-2 text-slate-400">Compartilhe o código com quem vai jogar</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Tema: {state.cardSource === "free" ? "Livre" : "Baralho"} · Modo:{" "}
+              {state.mode === "couple" ? "Casal" : "Times"}
+            </p>
+            {state.cardSource === "deck" && (
+              <p className="mt-1 text-sm text-slate-500">
+                Grupos: {themeLabels || "Relacionamento, Pets, Signos, Viagem, Primeiro encontro"}
+              </p>
+            )}
+          </header>
 
-      {error && (
-        <p className="mb-4 rounded-lg bg-rose-900/40 px-4 py-2 text-center text-rose-200">
-          {error}
-          <button type="button" onClick={clearError} className="ml-2 underline">
-            ok
-          </button>
-        </p>
-      )}
+          {error && (
+            <p className="mb-4 rounded-lg bg-rose-900/40 px-4 py-2 text-center text-rose-200">
+              {error}
+              <button type="button" onClick={clearError} className="ml-2 underline">
+                ok
+              </button>
+            </p>
+          )}
 
-      <div className="mb-8 flex items-center justify-center gap-3">
-        <span className="rounded-xl bg-slate-800 px-6 py-4 text-3xl font-mono tracking-[0.4em]">
-          {state.code}
-        </span>
-        <button
-          type="button"
-          onClick={copyCode}
-          className="rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold hover:bg-indigo-500"
-        >
-          {copied ? "Copiado!" : "Copiar"}
-        </button>
-      </div>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">Jogadores ({connectedCount})</h2>
-        <PlayerList state={state} />
-        {connectedCount < 2 && (
-          <p className="mt-4 text-center text-slate-400">Aguardando segundo jogador...</p>
-        )}
-      </section>
-
-      {state.mode === "teams" && (
-        <section className="mb-8 rounded-2xl bg-slate-900 p-6">
-          <h2 className="mb-4 text-lg font-semibold">Escolha seu time</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="mb-8 flex items-center justify-center gap-3">
+            <span className="rounded-xl bg-slate-800 px-6 py-4 text-3xl font-mono tracking-[0.4em]">
+              {state.code}
+            </span>
             <button
               type="button"
-              onClick={() => joinTeam("A")}
-              className="rounded-lg bg-sky-800 py-3 font-semibold hover:bg-sky-700"
+              onClick={copyCode}
+              className="rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold hover:bg-indigo-500"
             >
-              Time A
-            </button>
-            <button
-              type="button"
-              onClick={() => joinTeam("B")}
-              className="rounded-lg bg-rose-800 py-3 font-semibold hover:bg-rose-700"
-            >
-              Time B
+              {copied ? "Copiado!" : "Copiar"}
             </button>
           </div>
-        </section>
-      )}
 
-      {isHost(state) && (
-        <button
-          type="button"
-          onClick={() => {
-            startGame();
-            navigate(`/game/${state.code}`);
-          }}
-          disabled={!canStart}
-          className="w-full rounded-lg bg-emerald-600 py-4 text-lg font-semibold hover:bg-emerald-500 disabled:opacity-40"
-        >
-          Iniciar jogo
-        </button>
-      )}
+          <section className="mb-8">
+            <h2 className="mb-3 text-lg font-semibold">Jogadores ({connectedCount})</h2>
+            <PlayerList state={state} />
+            {connectedCount < 2 && (
+              <p className="mt-4 text-center text-slate-400">Aguardando segundo jogador...</p>
+            )}
+          </section>
 
-      {!isHost(state) && (
-        <p className="text-center text-slate-400">Aguardando o host iniciar a partida...</p>
-      )}
+          {state.mode === "teams" && (
+            <section className="mb-8 rounded-2xl bg-slate-900 p-6">
+              <h2 className="mb-4 text-lg font-semibold">Escolha seu time</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => joinTeam("A")}
+                  className="rounded-lg bg-sky-800 py-3 font-semibold hover:bg-sky-700"
+                >
+                  Time A
+                </button>
+                <button
+                  type="button"
+                  onClick={() => joinTeam("B")}
+                  className="rounded-lg bg-rose-800 py-3 font-semibold hover:bg-rose-700"
+                >
+                  Time B
+                </button>
+              </div>
+            </section>
+          )}
+
+          {isHost(state) && (
+            <button
+              type="button"
+              onClick={() => {
+                startGame();
+                navigate(`/game/${state.code}`);
+              }}
+              disabled={!canStart}
+              className="w-full rounded-lg bg-emerald-600 py-4 text-lg font-semibold hover:bg-emerald-500 disabled:opacity-40"
+            >
+              Iniciar jogo
+            </button>
+          )}
+
+          {!isHost(state) && (
+            <p className="text-center text-slate-400">Aguardando o host iniciar a partida...</p>
+          )}
+        </div>
+
+        <aside className="lg:sticky lg:top-8 lg:h-[min(400px,calc(100vh-4rem))]">
+          <RoomChat />
+        </aside>
+      </div>
     </div>
   );
 }

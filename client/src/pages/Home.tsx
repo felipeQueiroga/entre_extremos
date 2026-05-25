@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { GameMode } from "@entre-extremos/shared";
+import {
+  CARD_THEME_OPTIONS,
+  DEFAULT_CARD_THEMES,
+  type CardSource,
+  type CardTheme,
+  type GameMode,
+} from "@entre-extremos/shared";
 import { useGame } from "../hooks/GameContext";
 import { getStoredName, saveSession } from "../utils/session";
 
@@ -11,13 +17,23 @@ export default function Home() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<GameMode>("couple");
+  const [cardSource, setCardSource] = useState<CardSource>("deck");
+  const [cardThemes, setCardThemes] = useState<CardTheme[]>([...DEFAULT_CARD_THEMES]);
+
+  function toggleCardTheme(theme: CardTheme) {
+    setCardThemes((current) =>
+      current.includes(theme)
+        ? current.filter((selected) => selected !== theme)
+        : [...current, theme]
+    );
+  }
 
   async function handleCreate() {
     if (!name.trim()) return;
     setLoading(true);
     clearError();
     try {
-      const state = await createRoom(name.trim(), mode);
+      const state = await createRoom(name.trim(), mode, cardSource, cardThemes);
       saveSession(state.playerId, name.trim(), state.code);
       navigate(`/lobby/${state.code}`);
     } finally {
@@ -88,10 +104,57 @@ export default function Home() {
             <option value="couple">Casal (2 jogadores)</option>
             <option value="teams">Times (vários jogadores)</option>
           </select>
+          <label className="mb-2 block text-sm text-slate-400">Tema da rodada</label>
+          <select
+            value={cardSource}
+            onChange={(e) => setCardSource(e.target.value as CardSource)}
+            className="mb-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
+          >
+            <option value="deck">Baralho (cartas sorteadas)</option>
+            <option value="free">Livre (psíquico define o tema)</option>
+          </select>
+          {cardSource === "deck" && (
+            <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-300">Grupos de cartas</p>
+                  <p className="text-xs text-slate-500">Escolha pelo menos um tema para a partida.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCardThemes(CARD_THEME_OPTIONS.map((theme) => theme.id))}
+                  className="text-xs font-semibold text-indigo-300 hover:text-indigo-200"
+                >
+                  Todos
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {CARD_THEME_OPTIONS.map((theme) => (
+                  <label
+                    key={theme.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-300 hover:border-slate-600"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={cardThemes.includes(theme.id)}
+                      onChange={() => toggleCardTheme(theme.id)}
+                      className="h-4 w-4 accent-indigo-500"
+                    />
+                    {theme.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleCreate}
-            disabled={loading || !connected || !name.trim()}
+            disabled={
+              loading ||
+              !connected ||
+              !name.trim() ||
+              (cardSource === "deck" && cardThemes.length === 0)
+            }
             className="w-full rounded-lg bg-indigo-600 py-3 font-semibold hover:bg-indigo-500 disabled:opacity-40"
           >
             Criar sala

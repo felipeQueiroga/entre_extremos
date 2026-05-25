@@ -1,5 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import type {
+  CardSource,
+  CardTheme,
+  ChatMessage,
   ClientRoomState,
   ClientRoundState,
   GameMode,
@@ -8,7 +11,7 @@ import type {
   RoundState,
   Team,
 } from "@entre-extremos/shared";
-import { pickRandomCard, randomTargetPosition } from "./cards";
+import { normalizeCardThemes, pickRandomCard, randomTargetPosition } from "./cards";
 import {
   calculateRoundResult,
   getTeamWinners,
@@ -18,11 +21,23 @@ import {
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_COUPLE_PLAYERS = 2;
 const MAX_TEAM_PLAYERS = 8;
+const MAX_CHAT_MESSAGES = 50;
+const SUSPENSE_MS = 3000;
+const CHAT_COOLDOWN_MS = 1000;
+
+type BroadcastFn = (roomCode: string) => void;
 
 export class RoomManager {
   private rooms = new Map<string, RoomState>();
   private playerToRoom = new Map<string, string>();
   private socketToPlayer = new Map<string, string>();
+  private suspenseTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private chatCooldown = new Map<string, number>();
+  private broadcast: BroadcastFn = () => {};
+
+  setBroadcast(fn: BroadcastFn): void {
+    this.broadcast = fn;
+  }
 
   generateCode(): string {
     let code: string;
@@ -34,7 +49,12 @@ export class RoomManager {
     return code;
   }
 
-  createRoom(name: string, mode: GameMode = "couple"): { room: RoomState; player: Player } {
+  createRoom(
+    name: string,
+    mode: GameMode = "couple",
+    cardSource: CardSource = "deck",
+    cardThemes?: CardTheme[]
+  ): { room: RoomState; player: Player } {
     const code = this.generateCode();
     const player: Player = {
       id: uuidv4(),
@@ -50,6 +70,9 @@ export class RoomManager {
       teamScore: mode === "teams" ? { A: 0, B: 1 } : undefined,
       status: "lobby",
       mode,
+      cardSource,
+      cardThemes: normalizeCardThemes(cardThemes),
+      messages: [],
       winningScore: 10,
       usedCardIds: [],
     };
@@ -116,9 +139,11 @@ export class RoomManager {
     }
 
     this.playerToRoom.delete(playerId);
+    this.chatCooldown.delete(playerId);
 
     const connected = room.players.filter((p) => p.connected);
     if (connected.length === 0) {
+      this.clearSuspenseTimer(code);
       this.rooms.delete(code);
       return null;
     }
@@ -153,6 +178,10 @@ export class RoomManager {
 
   getRoom(code: string): RoomState | undefined {
     return this.rooms.get(code.toUpperCase());
+  }
+
+  getChatHistory(roomCode: string): ChatMessage[] {
+    return this.rooms.get(roomCode)?.messages ?? [];
   }
 
   setPlayerTeam(playerId: string, team: Team): { error?: string } {
@@ -202,6 +231,7 @@ export class RoomManager {
   }
 
   private startRound(room: RoomState): void {
+    this.clearSuspenseTimer(room.code);
     const connected = room.players.filter((p) => p.connected);
     const roundNumber = (room.currentRound?.roundNumber ?? 0) + 1;
 
@@ -218,7 +248,23 @@ export class RoomManager {
       psychicPlayerId = teamPlayers[psychicIndex]?.id ?? connected[0].id;
     }
 
-    const card = pickRandomCard(room.usedCardIds);
+    const targetPosition = randomTargetPosition();
+
+    if (room.cardSource === "free") {
+      const round: RoundState = {
+        roundNumber,
+        activeTeam,
+        psychicPlayerId,
+        card: { id: "custom", left: "", right: "" },
+        targetPosition,
+        revealed: false,
+        phase: "psychic_theme",
+      };
+      room.currentRound = round;
+      return;
+    }
+
+    const card = pickRandomCard(room.usedCardIds, room.cardThemes);
     room.usedCardIds.push(card.id);
 
     const round: RoundState = {
@@ -226,12 +272,34 @@ export class RoomManager {
       activeTeam,
       psychicPlayerId,
       card,
-      targetPosition: randomTargetPosition(),
+      targetPosition,
       revealed: false,
       phase: "psychic_clue",
     };
 
     room.currentRound = round;
+  }
+
+  submitTheme(playerId: string, left: string, right: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room?.currentRound) return { error: "Rodada não encontrada." };
+
+    const round = room.currentRound;
+    if (round.phase !== "psychic_theme") return { error: "Não é hora de definir o tema." };
+    if (round.psychicPlayerId !== playerId) return { error: "Apenas o psíquico pode definir o tema." };
+
+    const leftTrim = left.trim();
+    const rightTrim = right.trim();
+    if (leftTrim.length < 2 || leftTrim.length > 30) {
+      return { error: "Extremo esquerdo inválido (2-30 caracteres)." };
+    }
+    if (rightTrim.length < 2 || rightTrim.length > 30) {
+      return { error: "Extremo direito inválido (2-30 caracteres)." };
+    }
+
+    round.card = { id: "custom", left: leftTrim, right: rightTrim };
+    round.phase = "psychic_clue";
+    return {};
   }
 
   submitClue(playerId: string, clue: string): { error?: string } {
@@ -275,11 +343,11 @@ export class RoomManager {
     }
 
     round.guessPosition = Math.round(position);
-    round.phase = room.mode === "teams" ? "opponent_direction" : "reveal";
-    round.revealed = room.mode === "couple";
+    round.phase = room.mode === "teams" ? "opponent_direction" : "suspense";
+    round.revealed = false;
 
     if (room.mode === "couple") {
-      this.applyRoundScoring(room);
+      this.scheduleSuspenseReveal(room);
     }
 
     return {};
@@ -302,10 +370,68 @@ export class RoomManager {
     }
 
     round.opponentDirectionGuess = direction;
-    round.phase = "reveal";
-    round.revealed = true;
-    this.applyRoundScoring(room);
+    round.phase = "suspense";
+    round.revealed = false;
+    this.scheduleSuspenseReveal(room);
     return {};
+  }
+
+  private scheduleSuspenseReveal(room: RoomState): void {
+    this.clearSuspenseTimer(room.code);
+    const code = room.code;
+    const timer = setTimeout(() => {
+      this.suspenseTimers.delete(code);
+      const r = this.rooms.get(code);
+      if (!r?.currentRound || r.currentRound.phase !== "suspense") return;
+      r.currentRound.phase = "reveal";
+      r.currentRound.revealed = true;
+      this.applyRoundScoring(r);
+      this.broadcast(code);
+    }, SUSPENSE_MS);
+    this.suspenseTimers.set(code, timer);
+  }
+
+  private clearSuspenseTimer(roomCode: string): void {
+    const timer = this.suspenseTimers.get(roomCode);
+    if (timer) {
+      clearTimeout(timer);
+      this.suspenseTimers.delete(roomCode);
+    }
+  }
+
+  sendChat(playerId: string, text: string): { error?: string; message?: ChatMessage } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room) return { error: "Sala não encontrada." };
+
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) return { error: "Jogador não encontrado." };
+
+    const now = Date.now();
+    const last = this.chatCooldown.get(playerId) ?? 0;
+    if (now - last < CHAT_COOLDOWN_MS) {
+      return { error: "Aguarde um momento antes de enviar outra mensagem." };
+    }
+
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length > 200) {
+      return { error: "Mensagem inválida (1-200 caracteres)." };
+    }
+
+    const message: ChatMessage = {
+      id: uuidv4(),
+      playerId,
+      playerName: player.name,
+      text: trimmed,
+      at: now,
+    };
+
+    room.messages.push(message);
+    if (room.messages.length > MAX_CHAT_MESSAGES) {
+      room.messages = room.messages.slice(-MAX_CHAT_MESSAGES);
+    }
+
+    this.chatCooldown.set(playerId, now);
+    return { message };
   }
 
   private applyRoundScoring(room: RoomState): void {
@@ -371,6 +497,7 @@ export class RoomManager {
     const host = room.players.find((p) => p.id === playerId);
     if (!host?.isHost) return { error: "Apenas o host pode reiniciar." };
 
+    this.clearSuspenseTimer(room.code);
     room.status = "lobby";
     room.currentRound = undefined;
     room.usedCardIds = [];
@@ -437,6 +564,9 @@ export class RoomManager {
       teamScore: room.teamScore,
       status: room.status,
       mode: room.mode,
+      cardSource: room.cardSource,
+      cardThemes: room.cardThemes,
+      messages: room.messages,
       currentRound: clientRound,
       winningScore: room.winningScore,
       playerId,

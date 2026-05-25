@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ScaleSlider from "./ScaleSlider";
+import GameDial from "./GameDial";
 
 interface PsychicViewProps {
   targetPosition?: number;
@@ -15,18 +15,19 @@ export default function PsychicView({
   onSubmit,
 }: PsychicViewProps) {
   const [clue, setClue] = useState("");
-
   return (
     <div className="space-y-6 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-6">
       <h2 className="text-xl font-semibold text-indigo-200">Você é o psíquico</h2>
       <p className="text-slate-300">
-        Veja onde está o alvo na escala e dê uma dica para seu parceiro.
+        O <strong className="text-red-400">ponteiro vermelho</strong> marca onde está o alvo secreto na
+        escala. Dê uma dica para seu parceiro encontrar esse ponto.
       </p>
 
-      <ScaleSlider
-        value={targetPosition ?? 50}
-        targetPosition={targetPosition}
-        showTarget
+      <GameDial
+        mode="psychic"
+        pointerValue={targetPosition ?? 50}
+        targetValue={targetPosition}
+        revealed={false}
         disabled
         leftLabel={leftLabel}
         rightLabel={rightLabel}

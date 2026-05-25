@@ -1,11 +1,7 @@
+import { scoreFromDistance } from "@entre-extremos/shared";
 import type { RoundResult, Team } from "@entre-extremos/shared";
 
-export function scoreFromDistance(distance: number): number {
-  if (distance <= 4) return 4;
-  if (distance <= 8) return 3;
-  if (distance <= 12) return 2;
-  return 0;
-}
+export { scoreFromDistance };
 
 export function getRealDirection(
   targetPosition: number,

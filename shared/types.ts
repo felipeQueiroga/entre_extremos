@@ -1,8 +1,41 @@
 export type GameMode = "couple" | "teams";
 
+export type CardSource = "deck" | "free";
+
+export const CARD_THEME_OPTIONS = [
+  { id: "relacionamento", label: "Relacionamento" },
+  { id: "pets", label: "Pets" },
+  { id: "personalidade", label: "Personalidade" },
+  { id: "signos", label: "Signos" },
+  { id: "viagem", label: "Viagem" },
+  { id: "primeiro-encontro", label: "Primeiro encontro" },
+  { id: "comida", label: "Comida" },
+  { id: "filmes-series", label: "Filmes e séries" },
+  { id: "profissoes", label: "Profissões" },
+  { id: "lugares", label: "Lugares" },
+  { id: "aleatorias", label: "Aleatórias" },
+] as const;
+
+export type CardTheme = (typeof CARD_THEME_OPTIONS)[number]["id"];
+
+export const DEFAULT_CARD_THEMES: CardTheme[] = [
+  "relacionamento",
+  "pets",
+  "signos",
+  "viagem",
+  "primeiro-encontro",
+];
+
 export type RoomStatus = "lobby" | "playing" | "finished";
 
-export type RoundPhase = "psychic_clue" | "guess" | "opponent_direction" | "reveal" | "ended";
+export type RoundPhase =
+  | "psychic_theme"
+  | "psychic_clue"
+  | "guess"
+  | "opponent_direction"
+  | "suspense"
+  | "reveal"
+  | "ended";
 
 export type Team = "A" | "B";
 
@@ -20,6 +53,14 @@ export interface Card {
   id: string;
   left: string;
   right: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  text: string;
+  at: number;
 }
 
 export interface RoundState {
@@ -49,6 +90,9 @@ export interface RoomState {
   teamScore?: TeamScore;
   status: RoomStatus;
   mode: GameMode;
+  cardSource: CardSource;
+  cardThemes: CardTheme[];
+  messages: ChatMessage[];
   currentRound?: RoundState;
   winningScore: number;
   usedCardIds: string[];

@@ -5,6 +5,10 @@ import { Server } from "socket.io";
 import {
   CLIENT_EVENTS,
   SERVER_EVENTS,
+  type CardSource,
+  type CardTheme,
+  type ChatMessage,
+  type ChatSendPayload,
   type ClientRoomState,
   type GameMode,
   type GameOverPayload,
@@ -12,6 +16,7 @@ import {
   type PlayerJoinTeamPayload,
   type PlayerSubmitGuessPayload,
   type PsychicSubmitCluePayload,
+  type PsychicSubmitThemePayload,
   type RoomCreatePayload,
   type RoomJoinPayload,
   type RoomReconnectPayload,
@@ -98,16 +103,26 @@ function emitError(socketId: string, message: string): void {
   io.to(socketId).emit(SERVER_EVENTS.ROOM_ERROR, { message });
 }
 
+function sendChatHistory(socketId: string, roomCode: string): void {
+  const history = roomManager.getChatHistory(roomCode);
+  io.to(socketId).emit(SERVER_EVENTS.CHAT_HISTORY, history);
+}
+
+roomManager.setBroadcast(broadcastRoomState);
+
 io.on("connection", (socket) => {
   socket.on(CLIENT_EVENTS.ROOM_CREATE, (payload: RoomCreatePayload, ack?: (data: ClientRoomState | null) => void) => {
     const mode: GameMode = payload.mode ?? "couple";
-    const { room, player } = roomManager.createRoom(payload.name, mode);
+    const cardSource: CardSource = payload.cardSource ?? "deck";
+    const cardThemes: CardTheme[] | undefined = payload.cardThemes;
+    const { room, player } = roomManager.createRoom(payload.name, mode, cardSource, cardThemes);
     roomManager.bindSocket(socket.id, player.id);
     socket.join(room.code);
     socket.join(player.id);
 
     const state = roomManager.toClientState(room, player.id);
     ack?.(state);
+    sendChatHistory(socket.id, room.code);
     broadcastRoomState(room.code);
   });
 
@@ -126,6 +141,7 @@ io.on("connection", (socket) => {
 
     const state = roomManager.toClientState(room, player.id);
     ack?.(state);
+    sendChatHistory(socket.id, room.code);
     broadcastRoomState(room.code);
   });
 
@@ -144,6 +160,7 @@ io.on("connection", (socket) => {
 
     const state = roomManager.toClientState(room, player.id);
     ack?.(state);
+    sendChatHistory(socket.id, room.code);
     broadcastRoomState(room.code);
   });
 
@@ -180,6 +197,20 @@ io.on("connection", (socket) => {
     if (!playerId) return;
 
     const result = roomManager.startGame(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.PSYCHIC_SUBMIT_THEME, (payload: PsychicSubmitThemePayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.submitTheme(playerId, payload.left, payload.right);
     if (result.error) {
       emitError(socket.id, result.error);
       return;
@@ -243,6 +274,22 @@ io.on("connection", (socket) => {
 
     const room = roomManager.getRoomByPlayer(playerId);
     if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.CHAT_SEND, (payload: ChatSendPayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.sendChat(playerId, payload.text);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room && result.message) {
+      io.to(room.code).emit(SERVER_EVENTS.CHAT_MESSAGE, result.message);
+    }
   });
 
   socket.on(CLIENT_EVENTS.GAME_RESTART, () => {
