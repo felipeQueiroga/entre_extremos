@@ -160,6 +160,7 @@ export interface FourColorsGameState {
   pendingDrawType?: FourColorsPendingDrawType;
   pendingDrawPlayerId?: string;
   pendingHandSwap?: FourColorsPendingHandSwap;
+  turnDeadlineAt?: number;
   winnerId?: string;
   lastAction?: string;
 }
@@ -182,6 +183,7 @@ export interface ClientFourColorsGameState {
   pendingDrawType?: FourColorsPendingDrawType;
   pendingDrawPlayerId?: string;
   pendingHandSwap?: FourColorsPendingHandSwap;
+  turnDeadlineAt?: number;
   winnerId?: string;
   lastAction?: string;
   canPass: boolean;

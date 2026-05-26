@@ -16,7 +16,7 @@ export default function PlayerList({
   const gridClass = opponents.length <= 1 ? "grid-cols-1" : "md:grid-cols-2 xl:grid-cols-3";
 
   return (
-    <section className="rounded-[2rem] border border-emerald-300/20 bg-emerald-950/40 p-4 shadow-inner">
+    <section className="rounded-[1.5rem] border border-emerald-300/20 bg-emerald-950/40 p-3 shadow-inner sm:rounded-[2rem] sm:p-4">
       <h2 className="mb-3 text-center text-sm font-semibold uppercase tracking-[0.25em] text-emerald-100/80">
         Mesa
       </h2>
@@ -28,7 +28,7 @@ export default function PlayerList({
           return (
             <li
               key={player.playerId}
-              className={`rounded-2xl border px-4 py-3 ${
+              className={`rounded-2xl border px-3 py-3 sm:px-4 ${
                 player.playerId === game.currentPlayerId
                   ? "border-amber-300 bg-amber-950/50"
                   : "border-emerald-700/40 bg-slate-950/50"
@@ -46,12 +46,12 @@ export default function PlayerList({
                   {player.connected ? "online" : "offline"}
                 </span>
               </div>
-              <div className="mt-3 flex min-h-20 items-center justify-center overflow-hidden">
-                <div className="flex max-w-full flex-wrap justify-center pl-7">
+              <div className="mt-3 flex min-h-16 items-center justify-center overflow-hidden sm:min-h-20">
+                <div className="flex max-w-full flex-wrap justify-center pl-6 sm:pl-7">
                   {Array.from({ length: visibleBacks }).map((_, index) => (
                     <CardBack
                       key={index}
-                      className="h-16 w-11 -ml-7 transition-transform"
+                      className="h-14 w-10 -ml-6 transition-transform sm:h-16 sm:w-11 sm:-ml-7"
                     />
                   ))}
                 </div>

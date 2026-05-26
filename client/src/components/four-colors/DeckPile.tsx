@@ -10,7 +10,7 @@ interface DeckPileProps {
 
 export default function DeckPile({ disabled, canPass, passHint, onDraw, onPass }: DeckPileProps) {
   return (
-    <div className="text-center">
+    <div className="w-full min-w-28 text-center sm:w-auto">
       <button
         type="button"
         onClick={onDraw}
@@ -24,7 +24,7 @@ export default function DeckPile({ disabled, canPass, passHint, onDraw, onPass }
         type="button"
         onClick={onDraw}
         disabled={disabled}
-        className="mt-3 w-full rounded-full bg-sky-600 px-5 py-2 text-sm font-bold hover:bg-sky-500 disabled:opacity-40"
+        className="mt-3 w-full rounded-full bg-sky-600 px-4 py-2 text-sm font-bold hover:bg-sky-500 disabled:opacity-40 sm:px-5"
       >
         Comprar
       </button>
@@ -32,11 +32,11 @@ export default function DeckPile({ disabled, canPass, passHint, onDraw, onPass }
         type="button"
         onClick={onPass}
         disabled={!canPass}
-        className="mt-2 w-full rounded-full bg-slate-700 px-5 py-2 text-sm font-semibold hover:bg-slate-600 disabled:opacity-40"
+        className="mt-2 w-full rounded-full bg-slate-700 px-4 py-2 text-sm font-semibold hover:bg-slate-600 disabled:opacity-40 sm:px-5"
       >
         Passar
       </button>
-      {passHint && <p className="mt-2 max-w-32 text-xs text-amber-200">{passHint}</p>}
+      {passHint && <p className="mx-auto mt-2 max-w-36 text-xs text-amber-200">{passHint}</p>}
     </div>
   );
 }

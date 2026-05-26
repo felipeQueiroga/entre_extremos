@@ -23,6 +23,7 @@ import {
   drawCard,
   passTurn,
   penalizeMissedOne,
+  penalizeTurnTimeout,
   playCard,
   playerNeedsOneCall,
   startFourColorsGame,
@@ -41,6 +42,7 @@ const MAX_CHAT_MESSAGES = 50;
 const SUSPENSE_MS = 3000;
 const CHAT_COOLDOWN_MS = 1000;
 const ONE_CALL_GRACE_MS = 2000;
+const FOUR_COLORS_TURN_MS = 20000;
 
 type BroadcastFn = (roomCode: string) => void;
 
@@ -50,6 +52,7 @@ export class RoomManager {
   private socketToPlayer = new Map<string, string>();
   private suspenseTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private oneCallTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private fourColorsTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private chatCooldown = new Map<string, number>();
   private broadcast: BroadcastFn = () => {};
 
@@ -172,6 +175,7 @@ export class RoomManager {
     if (connected.length === 0) {
       this.clearSuspenseTimer(code);
       this.clearOneCallTimersForRoom(code);
+      this.clearFourColorsTurnTimer(code);
       this.rooms.delete(code);
       return null;
     }
@@ -259,7 +263,9 @@ export class RoomManager {
     }
 
     if (room.selectedGame === "quatro-cores") {
-      return startFourColorsGame(room);
+      const result = startFourColorsGame(room);
+      if (!result.error) this.scheduleFourColorsTurnTimer(room);
+      return result;
     }
 
     this.startRound(room);
@@ -484,6 +490,43 @@ export class RoomManager {
     this.oneCallTimers.set(key, timer);
   }
 
+  private clearFourColorsTurnTimer(roomCode: string): void {
+    const timer = this.fourColorsTurnTimers.get(roomCode);
+    if (timer) {
+      clearTimeout(timer);
+      this.fourColorsTurnTimers.delete(roomCode);
+    }
+  }
+
+  private scheduleFourColorsTurnTimer(room: RoomState): void {
+    this.clearFourColorsTurnTimer(room.code);
+    if (
+      room.status !== "playing" ||
+      room.selectedGame !== "quatro-cores" ||
+      room.gameState?.kind !== "four-colors" ||
+      room.gameState.winnerId
+    ) {
+      if (room.gameState?.kind === "four-colors") {
+        room.gameState.turnDeadlineAt = undefined;
+      }
+      return;
+    }
+
+    const playerId = room.gameState.currentPlayerId;
+    room.gameState.turnDeadlineAt = Date.now() + FOUR_COLORS_TURN_MS;
+    const timer = setTimeout(() => {
+      this.fourColorsTurnTimers.delete(room.code);
+      const currentRoom = this.rooms.get(room.code);
+      if (!currentRoom || currentRoom.status !== "playing") return;
+      if (penalizeTurnTimeout(currentRoom, playerId)) {
+        this.scheduleFourColorsTurnTimer(currentRoom);
+        this.broadcast(currentRoom.code);
+      }
+    }, FOUR_COLORS_TURN_MS);
+
+    this.fourColorsTurnTimers.set(room.code, timer);
+  }
+
   sendChat(playerId: string, text: string): { error?: string; message?: ChatMessage } {
     const room = this.getRoomByPlayer(playerId);
     if (!room) return { error: "Sala não encontrada." };
@@ -584,6 +627,7 @@ export class RoomManager {
 
     this.clearSuspenseTimer(room.code);
     this.clearOneCallTimersForRoom(room.code);
+    this.clearFourColorsTurnTimer(room.code);
     room.status = "lobby";
     room.currentRound = undefined;
     room.usedCardIds = [];
@@ -673,26 +717,35 @@ export class RoomManager {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
     const result = playCard(room, playerId, cardId);
-    if (!result.error) this.scheduleOneCallPenalty(room, playerId);
+    if (!result.error) {
+      this.scheduleOneCallPenalty(room, playerId);
+      this.scheduleFourColorsTurnTimer(room);
+    }
     return result;
   }
 
   drawFourColorsCard(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return drawCard(room, playerId);
+    const result = drawCard(room, playerId);
+    if (!result.error) this.scheduleFourColorsTurnTimer(room);
+    return result;
   }
 
   passFourColorsTurn(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return passTurn(room, playerId);
+    const result = passTurn(room, playerId);
+    if (!result.error) this.scheduleFourColorsTurnTimer(room);
+    return result;
   }
 
   chooseFourColorsColor(playerId: string, color: CardColor): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return chooseColor(room, playerId, color);
+    const result = chooseColor(room, playerId, color);
+    if (!result.error) this.scheduleFourColorsTurnTimer(room);
+    return result;
   }
 
   callFourColorsOne(playerId: string): { error?: string } {
@@ -714,7 +767,9 @@ export class RoomManager {
   chooseFourColorsHandSwapTarget(playerId: string, targetPlayerId?: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return chooseHandSwapTarget(room, playerId, targetPlayerId);
+    const result = chooseHandSwapTarget(room, playerId, targetPlayerId);
+    if (!result.error) this.scheduleFourColorsTurnTimer(room);
+    return result;
   }
 }
 

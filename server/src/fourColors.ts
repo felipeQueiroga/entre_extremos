@@ -452,6 +452,26 @@ export function penalizeMissedOne(room: RoomState, targetPlayerId: string): bool
   return true;
 }
 
+export function penalizeTurnTimeout(room: RoomState, playerId: string): boolean {
+  const state = getFourColorsState(room);
+  if (!state || state.winnerId || room.status !== "playing") return false;
+  if (state.currentPlayerId !== playerId) return false;
+
+  const player = getPlayerState(state, playerId);
+  if (!player) return false;
+
+  drawCards(state, playerId, 1);
+  player.drewThisTurn = false;
+  state.pendingColorChoice = undefined;
+  state.pendingDrawAmount = undefined;
+  state.pendingDrawType = undefined;
+  state.pendingDrawPlayerId = undefined;
+  state.pendingHandSwap = undefined;
+  state.currentPlayerId = calculateNextPlayer(state, 1);
+  state.lastAction = `${playerName(room, playerId)} ficou sem tempo, comprou 1 carta e perdeu a vez.`;
+  return true;
+}
+
 export function toClientFourColorsState(
   room: RoomState,
   playerId: string
@@ -488,6 +508,7 @@ export function toClientFourColorsState(
     pendingDrawType: state.pendingDrawType,
     pendingDrawPlayerId: state.pendingDrawPlayerId,
     pendingHandSwap: state.pendingHandSwap,
+    turnDeadlineAt: state.turnDeadlineAt,
     winnerId: state.winnerId,
     lastAction: state.lastAction,
     canPass:

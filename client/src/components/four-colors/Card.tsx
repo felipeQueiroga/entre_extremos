@@ -4,7 +4,7 @@ interface CardProps {
   card: FourColorsCard;
   playable?: boolean;
   disabled?: boolean;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "responsive";
   onClick?: () => void;
 }
 
@@ -37,6 +37,7 @@ const SIZE_CLASSES = {
   sm: "h-20 w-14 rounded-xl text-base",
   md: "h-28 w-20 rounded-2xl text-2xl",
   lg: "h-36 w-24 rounded-3xl text-4xl",
+  responsive: "h-28 w-20 rounded-2xl text-2xl sm:h-36 sm:w-24 sm:rounded-3xl sm:text-4xl",
 };
 
 export function CardBack({ className = "" }: { className?: string }) {

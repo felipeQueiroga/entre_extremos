@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type {
   Card as FourColorsCard,
   ClientFourColorsGameState,
@@ -10,7 +11,6 @@ import DiscardPile from "./DiscardPile";
 import OneButton from "./OneButton";
 import PlayerHand from "./PlayerHand";
 import PlayerList from "./PlayerList";
-import TurnIndicator from "./TurnIndicator";
 
 interface FourColorsGameProps {
   state: ClientRoomState;
@@ -45,6 +45,12 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
   } = useGame();
 
   const game = state.gameState?.kind === "four-colors" ? state.gameState : undefined;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, []);
 
   if (!game) {
     return (
@@ -60,6 +66,10 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
   );
   const localPlayer = game.players.find((player) => player.playerId === state.playerId);
   const currentPlayer = game.players.find((player) => player.playerId === game.currentPlayerId);
+  const secondsLeft = game.turnDeadlineAt
+    ? Math.max(0, Math.ceil((game.turnDeadlineAt - now) / 1000))
+    : undefined;
+  const timerIsUrgent = secondsLeft !== undefined && secondsLeft <= 3;
   const pendingColorForLocal = game.pendingColorChoice?.playerId === state.playerId;
   const pendingHandSwapForLocal = game.pendingHandSwap?.playerId === state.playerId;
   const pendingHandSwapPlayer = game.pendingHandSwap
@@ -94,24 +104,35 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
         </div>
       </header>
 
-      <TurnIndicator
-        state={state}
-        currentPlayerId={game.currentPlayerId}
-        direction={game.direction}
-      />
-
-      {game.lastAction && (
-        <p className={`rounded-lg bg-slate-900 px-4 py-3 text-center text-sm text-slate-300 ${actionAnimation}`}>
-          {game.lastAction}
-        </p>
-      )}
-
-      <div className={`rounded-[3rem] border border-emerald-300/20 bg-emerald-950/60 p-4 shadow-2xl shadow-emerald-950/40 md:p-6 ${tableAnimation}`}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className={`rounded-[2rem] border border-emerald-300/20 bg-emerald-950/60 p-3 shadow-2xl shadow-emerald-950/40 sm:rounded-[3rem] sm:p-4 md:p-6 ${tableAnimation}`}>
+        <div className="mb-4 grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-center">
           <div className="rounded-2xl border border-amber-300/40 bg-amber-950/40 px-4 py-3 shadow-lg">
             <p className="text-xs uppercase tracking-[0.25em] text-amber-200/80">Vez de</p>
             <p className="text-lg font-black text-amber-100">{currentPlayer?.name ?? "Jogador"}</p>
+            <p className="mt-1 text-xs text-amber-100/70">
+              Direção: {game.direction === 1 ? "horária" : "anti-horária"}
+            </p>
+            {secondsLeft !== undefined && (
+              <div className="mt-3">
+                <p className={`text-sm font-black ${timerIsUrgent ? "text-rose-200" : "text-emerald-200"}`}>
+                  {secondsLeft}s para agir
+                </p>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-950/70">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      timerIsUrgent ? "bg-rose-400" : "bg-emerald-300"
+                    }`}
+                    style={{ width: `${Math.max(0, Math.min(100, secondsLeft * 10))}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
+          {game.lastAction && (
+            <p className={`rounded-2xl bg-slate-950/60 px-4 py-3 text-center text-sm text-slate-300 ${actionAnimation}`}>
+              {game.lastAction}
+            </p>
+          )}
           {game.pendingDrawAmount ? (
             <p className="rounded-2xl border border-rose-300/40 bg-rose-950/50 px-4 py-3 text-sm font-semibold text-rose-100">
               {drawStackLabel(game)}
@@ -125,7 +146,7 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
           onChallenge={fourColorsChallengeOne}
         />
 
-        <div className="my-6 grid items-center gap-6 rounded-[2.5rem] border border-emerald-300/20 bg-emerald-900/30 p-6 shadow-inner md:grid-cols-[1fr_auto_auto_auto_1fr]">
+        <div className="my-4 flex flex-wrap items-center justify-center gap-4 rounded-[2rem] border border-emerald-300/20 bg-emerald-900/30 p-3 shadow-inner sm:p-5 md:grid md:grid-cols-[1fr_auto_auto_auto_1fr] md:gap-6">
           <div className="flex justify-center md:justify-end">
             <DeckPile
               disabled={!isLocalTurn || !!game.pendingColorChoice || !!game.pendingHandSwap}

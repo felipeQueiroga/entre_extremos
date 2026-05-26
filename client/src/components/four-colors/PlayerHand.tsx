@@ -15,7 +15,7 @@ export default function PlayerHand({
   onPlayCard,
 }: PlayerHandProps) {
   return (
-    <section className="rounded-[2rem] border border-slate-700 bg-slate-950/80 p-4 shadow-2xl">
+    <section className="rounded-[1.5rem] border border-slate-700 bg-slate-950/80 p-3 shadow-2xl sm:rounded-[2rem] sm:p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Sua mão</h2>
         <span className="text-sm text-slate-400">{cards.length} carta(s)</span>
@@ -27,7 +27,7 @@ export default function PlayerHand({
             <Card
               key={card.id}
               card={card}
-              size="lg"
+              size="responsive"
               playable={playable}
               disabled={!playable}
               onClick={() => onPlayCard(card.id)}
