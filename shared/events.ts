@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   ClientRoomState,
   Direction,
+  FourColorsOptions,
   GameMode,
   SelectedGame,
 } from "./types";
@@ -39,6 +40,7 @@ export const CLIENT_EVENTS = {
   FOUR_COLORS_CALL_ONE: "fourColors:callOne",
   FOUR_COLORS_CHALLENGE_ONE: "fourColors:challengeOne",
   FOUR_COLORS_PASS_TURN: "fourColors:passTurn",
+  FOUR_COLORS_CHOOSE_HAND_SWAP_TARGET: "fourColors:chooseHandSwapTarget",
   FOUR_COLORS_RESTART: "fourColors:restart",
 } as const;
 
@@ -48,6 +50,7 @@ export interface RoomCreatePayload {
   mode?: GameMode;
   cardSource?: CardSource;
   cardThemes?: CardTheme[];
+  fourColorsOptions?: FourColorsOptions;
 }
 
 export interface RoomJoinPayload {
@@ -96,6 +99,10 @@ export interface FourColorsChooseColorPayload {
 
 export interface FourColorsChallengeOnePayload {
   targetPlayerId: string;
+}
+
+export interface FourColorsChooseHandSwapTargetPayload {
+  targetPlayerId?: string;
 }
 
 export interface RoomErrorPayload {

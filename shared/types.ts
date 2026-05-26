@@ -134,6 +134,16 @@ export interface FourColorsPendingColorChoice {
   drawAmount: 0 | 4;
 }
 
+export interface FourColorsOptions {
+  zeroSwapEnabled: boolean;
+}
+
+export type FourColorsPendingDrawType = "draw2" | "wildDraw4";
+
+export interface FourColorsPendingHandSwap {
+  playerId: string;
+}
+
 export interface FourColorsGameState {
   kind: "four-colors";
   playerOrder: string[];
@@ -146,6 +156,10 @@ export interface FourColorsGameState {
   currentType: CardType;
   currentValue?: number;
   pendingColorChoice?: FourColorsPendingColorChoice;
+  pendingDrawAmount?: number;
+  pendingDrawType?: FourColorsPendingDrawType;
+  pendingDrawPlayerId?: string;
+  pendingHandSwap?: FourColorsPendingHandSwap;
   winnerId?: string;
   lastAction?: string;
 }
@@ -164,6 +178,10 @@ export interface ClientFourColorsGameState {
   currentType: CardType;
   currentValue?: number;
   pendingColorChoice?: FourColorsPendingColorChoice;
+  pendingDrawAmount?: number;
+  pendingDrawType?: FourColorsPendingDrawType;
+  pendingDrawPlayerId?: string;
+  pendingHandSwap?: FourColorsPendingHandSwap;
   winnerId?: string;
   lastAction?: string;
   canPass: boolean;
@@ -194,6 +212,7 @@ export interface RoomState {
   mode: GameMode;
   cardSource: CardSource;
   cardThemes: CardTheme[];
+  fourColorsOptions: FourColorsOptions;
   messages: ChatMessage[];
   currentRound?: RoundState;
   gameState?: GameState;

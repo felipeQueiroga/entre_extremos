@@ -20,6 +20,7 @@ import {
   type PsychicSubmitThemePayload,
   type FourColorsChallengeOnePayload,
   type FourColorsChooseColorPayload,
+  type FourColorsChooseHandSwapTargetPayload,
   type FourColorsPlayCardPayload,
   type RoomCreatePayload,
   type RoomJoinPayload,
@@ -121,7 +122,14 @@ io.on("connection", (socket) => {
     const mode: GameMode = payload.mode ?? "couple";
     const cardSource: CardSource = payload.cardSource ?? "deck";
     const cardThemes: CardTheme[] | undefined = payload.cardThemes;
-    const { room, player } = roomManager.createRoom(payload.name, selectedGame, mode, cardSource, cardThemes);
+    const { room, player } = roomManager.createRoom(
+      payload.name,
+      selectedGame,
+      mode,
+      cardSource,
+      cardThemes,
+      payload.fourColorsOptions
+    );
     roomManager.bindSocket(socket.id, player.id);
     socket.join(room.code);
     socket.join(player.id);
@@ -410,6 +418,23 @@ io.on("connection", (socket) => {
     const room = roomManager.getRoomByPlayer(playerId);
     if (room) broadcastRoomState(room.code);
   });
+
+  socket.on(
+    CLIENT_EVENTS.FOUR_COLORS_CHOOSE_HAND_SWAP_TARGET,
+    (payload: FourColorsChooseHandSwapTargetPayload) => {
+      const playerId = roomManager.getPlayerIdBySocket(socket.id);
+      if (!playerId) return;
+
+      const result = roomManager.chooseFourColorsHandSwapTarget(playerId, payload.targetPlayerId);
+      if (result.error) {
+        emitError(socket.id, result.error);
+        return;
+      }
+
+      const room = roomManager.getRoomByPlayer(playerId);
+      if (room) broadcastRoomState(room.code);
+    }
+  );
 
   socket.on(CLIENT_EVENTS.FOUR_COLORS_RESTART, () => {
     const playerId = roomManager.getPlayerIdBySocket(socket.id);

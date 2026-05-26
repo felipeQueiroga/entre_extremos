@@ -12,6 +12,11 @@ import {
 import { useGame } from "../hooks/GameContext";
 import { getStoredName, saveSession } from "../utils/session";
 
+const GAME_IMAGES: Record<SelectedGame, string> = {
+  "entre-extremos": "/images/ponteiro.png",
+  "quatro-cores": "/images/entre_quatro_cores.png",
+};
+
 export default function Home() {
   const navigate = useNavigate();
   const { createRoom, joinRoom, error, clearError, connected, connectionError } = useGame();
@@ -22,6 +27,7 @@ export default function Home() {
   const [mode, setMode] = useState<GameMode>("couple");
   const [cardSource, setCardSource] = useState<CardSource>("deck");
   const [cardThemes, setCardThemes] = useState<CardTheme[]>([...DEFAULT_CARD_THEMES]);
+  const [zeroSwapEnabled, setZeroSwapEnabled] = useState(false);
 
   function toggleCardTheme(theme: CardTheme) {
     setCardThemes((current) =>
@@ -36,7 +42,9 @@ export default function Home() {
     setLoading(true);
     clearError();
     try {
-      const state = await createRoom(name.trim(), selectedGame, mode, cardSource, cardThemes);
+      const state = await createRoom(name.trim(), selectedGame, mode, cardSource, cardThemes, {
+        zeroSwapEnabled,
+      });
       saveSession(state.playerId, name.trim(), state.code);
       navigate(`/lobby/${state.code}`);
     } finally {
@@ -58,7 +66,7 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-3xl px-4 py-10">
+    <div className="mx-auto min-h-screen max-w-5xl px-4 py-10">
       <header className="mb-10 text-center">
         <p className="text-sm uppercase tracking-[0.3em] text-indigo-400">Jogo online</p>
         <h1 className="mt-2 text-4xl font-bold sm:text-5xl">Entre Extremos</h1>
@@ -87,7 +95,7 @@ export default function Home() {
         </p>
       )}
 
-      <section className="mb-10 grid gap-6 sm:grid-cols-2">
+      <section className="mb-10 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="rounded-2xl bg-slate-900 p-6 ring-1 ring-slate-800">
           <h2 className="mb-4 text-xl font-semibold">Criar sala</h2>
           <label className="mb-2 block text-sm text-slate-400">Seu nome</label>
@@ -99,14 +107,14 @@ export default function Home() {
             placeholder="Como quer ser chamado?"
           />
           <label className="mb-2 block text-sm text-slate-400">Jogo</label>
-          <div className="mb-4 grid gap-2">
+          <div className="mb-4 grid gap-4 md:grid-cols-2">
             {GAME_OPTIONS.map((game) => (
               <label
                 key={game.id}
-                className={`cursor-pointer rounded-xl border px-4 py-3 ${
+                className={`group overflow-hidden rounded-2xl border transition ${
                   selectedGame === game.id
-                    ? "border-indigo-500 bg-indigo-950/40"
-                    : "border-slate-800 bg-slate-950"
+                    ? "border-indigo-400 bg-indigo-950/50 shadow-lg shadow-indigo-950/40"
+                    : "border-slate-800 bg-slate-950 hover:border-slate-600"
                 }`}
               >
                 <input
@@ -117,8 +125,21 @@ export default function Home() {
                   onChange={() => setSelectedGame(game.id)}
                   className="sr-only"
                 />
-                <span className="block font-semibold">{game.label}</span>
-                <span className="text-sm text-slate-400">{game.description}</span>
+                <img
+                  src={GAME_IMAGES[game.id]}
+                  alt=""
+                  className="h-36 w-full object-cover transition group-hover:scale-105"
+                  aria-hidden
+                />
+                <span className="block p-4">
+                  <span className="block text-lg font-bold">{game.label}</span>
+                  <span className="mt-1 block text-sm text-slate-400">{game.description}</span>
+                  {selectedGame === game.id && (
+                    <span className="mt-3 inline-block rounded-full bg-indigo-500 px-3 py-1 text-xs font-bold">
+                      Selecionado
+                    </span>
+                  )}
+                </span>
               </label>
             ))}
           </div>
@@ -144,6 +165,28 @@ export default function Home() {
                 <option value="free">Livre (psíquico define o tema)</option>
               </select>
             </>
+          )}
+
+          {selectedGame === "quatro-cores" && (
+            <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+              <p className="mb-3 text-sm font-medium text-slate-300">Opções do Entre Quatro Cores</p>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-3 text-sm text-slate-300 hover:border-slate-600">
+                <input
+                  type="checkbox"
+                  checked={zeroSwapEnabled}
+                  onChange={(event) => setZeroSwapEnabled(event.target.checked)}
+                  className="mt-1 h-4 w-4 accent-indigo-500"
+                />
+                <span>
+                  <span className="block font-semibold">
+                    Carta 0 habilita troca de mão com outro jogador
+                  </span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    Quem jogar uma carta 0 pode escolher um adversário para trocar a mão ou ignorar.
+                  </span>
+                </span>
+              </label>
+            </div>
           )}
 
           {selectedGame === "entre-extremos" && cardSource === "deck" && (

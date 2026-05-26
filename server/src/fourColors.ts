@@ -4,6 +4,7 @@ import type {
   CardType,
   ClientFourColorsGameState,
   FourColorsGameState,
+  FourColorsPendingDrawType,
   FourColorsPlayerState,
   RoomState,
 } from "@entre-extremos/shared";
@@ -96,8 +97,40 @@ function playerName(room: RoomState, playerId: string): string {
   return room.players.find((player) => player.id === playerId)?.name ?? "Jogador";
 }
 
+function isDrawStackCard(card: Card): card is Card & { type: FourColorsPendingDrawType } {
+  return card.type === "draw2" || card.type === "wildDraw4";
+}
+
+function isSpecialCard(card: Card): boolean {
+  return card.type !== "number";
+}
+
+function specialCardLabel(card: Card): string {
+  if (card.type === "skip") return "bloqueio";
+  if (card.type === "reverse") return "inverter";
+  if (card.type === "draw2") return "+2";
+  if (card.type === "wild") return "coringa";
+  if (card.type === "wildDraw4") return "+4";
+  return "especial";
+}
+
+function resolvePendingDraw(room: RoomState, state: FourColorsGameState, playerId: string): void {
+  const amount = state.pendingDrawAmount ?? 0;
+  if (amount <= 0) return;
+
+  drawCards(state, playerId, amount);
+  state.pendingDrawAmount = undefined;
+  state.pendingDrawType = undefined;
+  state.pendingDrawPlayerId = undefined;
+  state.currentPlayerId = calculateNextPlayer(state, 1);
+  state.lastAction = `${playerName(room, playerId)} comprou ${amount} carta(s) acumuladas.`;
+}
+
 export function canPlayCard(card: Card, state: FourColorsGameState): boolean {
-  if (state.pendingColorChoice) return false;
+  if (state.pendingColorChoice || state.pendingHandSwap) return false;
+  if (state.pendingDrawAmount && state.pendingDrawType) {
+    return card.type === state.pendingDrawType;
+  }
   if (card.type === "wild" || card.type === "wildDraw4") return true;
   if (card.color === state.currentColor) return true;
   if (card.type !== "number" && card.type === state.currentType) return true;
@@ -126,8 +159,10 @@ export function applyCardEffect(card: Card, state: FourColorsGameState): void {
 
   if (card.type === "draw2") {
     const targetId = calculateNextPlayer(state, 1);
-    drawCards(state, targetId, 2);
-    state.currentPlayerId = calculateNextPlayer(state, 2);
+    state.pendingDrawAmount = (state.pendingDrawAmount ?? 0) + 2;
+    state.pendingDrawType = "draw2";
+    state.pendingDrawPlayerId = targetId;
+    state.currentPlayerId = targetId;
     return;
   }
 
@@ -187,7 +222,9 @@ export function startFourColorsGame(room: RoomState): { error?: string } {
 
   room.status = "playing";
   room.gameState = state;
-  room.score = Object.fromEntries(connectedPlayers.map((player) => [player.id, 0]));
+  for (const player of connectedPlayers) {
+    room.score[player.id] = room.score[player.id] ?? 0;
+  }
   return {};
 }
 
@@ -196,6 +233,7 @@ export function playCard(room: RoomState, playerId: string, cardId: string): { e
   if (!state) return { error: "Entre Quatro Cores não iniciado." };
   if (state.winnerId) return { error: "Partida encerrada." };
   if (state.pendingColorChoice) return { error: "Escolha a próxima cor antes de continuar." };
+  if (state.pendingHandSwap) return { error: "Resolva a troca de mão antes de continuar." };
   if (state.currentPlayerId !== playerId) return { error: "Não é sua vez." };
 
   const player = getPlayerState(state, playerId);
@@ -206,6 +244,9 @@ export function playCard(room: RoomState, playerId: string, cardId: string): { e
 
   const card = player.hand[cardIndex];
   if (!canPlayCard(card, state)) return { error: "Essa carta não pode ser jogada agora." };
+  if (state.pendingDrawAmount && (!isDrawStackCard(card) || card.type !== state.pendingDrawType)) {
+    return { error: "Você só pode empilhar uma carta de compra igual." };
+  }
 
   player.hand.splice(cardIndex, 1);
   player.drewThisTurn = false;
@@ -215,13 +256,26 @@ export function playCard(room: RoomState, playerId: string, cardId: string): { e
   state.currentType = card.type;
   state.currentValue = card.value;
   if (card.color) state.currentColor = card.color;
-  state.lastAction = `${playerName(room, playerId)} jogou uma carta.`;
+  state.lastAction = isSpecialCard(card)
+    ? `${playerName(room, playerId)} jogou carta especial (${specialCardLabel(card)}).`
+    : `${playerName(room, playerId)} jogou uma carta.`;
 
   if (player.hand.length === 0) {
     state.winnerId = playerId;
-    room.score[playerId] = 1;
+    room.score[playerId] = (room.score[playerId] ?? 0) + 1;
     room.status = "finished";
     state.lastAction = `${playerName(room, playerId)} venceu a partida.`;
+    return {};
+  }
+
+  if (
+    room.fourColorsOptions.zeroSwapEnabled &&
+    card.type === "number" &&
+    card.value === 0 &&
+    state.playerOrder.length > 1
+  ) {
+    state.pendingHandSwap = { playerId };
+    state.lastAction = `${playerName(room, playerId)} jogou 0 e pode trocar de mão.`;
     return {};
   }
 
@@ -234,31 +288,32 @@ export function drawCard(room: RoomState, playerId: string): { error?: string } 
   if (!state) return { error: "Entre Quatro Cores não iniciado." };
   if (state.winnerId) return { error: "Partida encerrada." };
   if (state.pendingColorChoice) return { error: "Aguarde a escolha da cor." };
+  if (state.pendingHandSwap) return { error: "Resolva a troca de mão antes de comprar." };
   if (state.currentPlayerId !== playerId) return { error: "Não é sua vez." };
 
   const player = getPlayerState(state, playerId);
   if (!player) return { error: "Jogador não encontrado." };
-  if (player.hand.some((card) => canPlayCard(card, state))) {
-    return { error: "Você ainda tem uma carta jogável." };
+
+  if (state.pendingDrawAmount) {
+    resolvePendingDraw(room, state, playerId);
+    return {};
   }
 
-  const drawn: Card[] = [];
-  let playableFound = false;
-  while (!playableFound) {
-    const card = drawFromDeck(state);
-    if (!card) break;
-    player.hand.push(card);
-    drawn.push(card);
-    playableFound = canPlayCard(card, state);
-  }
-
-  if (drawn.length === 0) {
+  const card = drawFromDeck(state);
+  if (!card) {
     return { error: "Não há cartas disponíveis para comprar." };
   }
 
+  player.hand.push(card);
   player.drewThisTurn = true;
   player.hasCalledOne = player.hand.length === 1 ? player.hasCalledOne : false;
-  state.lastAction = `${playerName(room, playerId)} comprou ${drawn.length} carta(s).`;
+  const playable = canPlayCard(card, state);
+  state.lastAction = `${playerName(room, playerId)} comprou 1 carta${playable ? " jogável" : ""}.`;
+  if (!playable) {
+    player.drewThisTurn = false;
+    state.currentPlayerId = calculateNextPlayer(state, 1);
+    state.lastAction = `${playerName(room, playerId)} comprou 1 carta e passou a vez.`;
+  }
   return {};
 }
 
@@ -267,10 +322,18 @@ export function passTurn(room: RoomState, playerId: string): { error?: string } 
   if (!state) return { error: "Entre Quatro Cores não iniciado." };
   if (state.currentPlayerId !== playerId) return { error: "Não é sua vez." };
   if (state.pendingColorChoice) return { error: "Escolha a próxima cor antes de passar." };
+  if (state.pendingHandSwap) return { error: "Resolva a troca de mão antes de passar." };
 
   const player = getPlayerState(state, playerId);
-  if (!player?.drewThisTurn) {
-    return { error: "Você só pode passar depois de comprar." };
+  if (!player) return { error: "Jogador não encontrado." };
+
+  if (state.pendingDrawAmount) {
+    resolvePendingDraw(room, state, playerId);
+    return {};
+  }
+
+  if (!player.drewThisTurn && !player.hand.some((card) => canPlayCard(card, state))) {
+    return { error: "Você precisa comprar uma carta antes de passar." };
   }
 
   player.drewThisTurn = false;
@@ -291,14 +354,49 @@ export function chooseColor(room: RoomState, playerId: string, color: CardColor)
 
   if (drawAmount > 0) {
     const targetId = calculateNextPlayer(state, 1);
-    drawCards(state, targetId, drawAmount);
-    state.currentPlayerId = calculateNextPlayer(state, 2);
-    state.lastAction = `${playerName(room, playerId)} escolheu ${color}; ${playerName(room, targetId)} comprou ${drawAmount}.`;
+    state.pendingDrawAmount = (state.pendingDrawAmount ?? 0) + drawAmount;
+    state.pendingDrawType = "wildDraw4";
+    state.pendingDrawPlayerId = targetId;
+    state.currentPlayerId = targetId;
+    state.lastAction = `${playerName(room, playerId)} escolheu ${color}; ${playerName(room, targetId)} deve responder +${state.pendingDrawAmount}.`;
   } else {
     state.currentPlayerId = calculateNextPlayer(state, 1);
     state.lastAction = `${playerName(room, playerId)} escolheu ${color}.`;
   }
 
+  return {};
+}
+
+export function chooseHandSwapTarget(
+  room: RoomState,
+  playerId: string,
+  targetPlayerId?: string
+): { error?: string } {
+  const state = getFourColorsState(room);
+  if (!state) return { error: "Entre Quatro Cores não iniciado." };
+  if (!state.pendingHandSwap) return { error: "Não há troca de mão pendente." };
+  if (state.pendingHandSwap.playerId !== playerId) {
+    return { error: "Apenas quem jogou o 0 pode resolver a troca." };
+  }
+
+  const player = getPlayerState(state, playerId);
+  if (!player) return { error: "Jogador não encontrado." };
+
+  if (targetPlayerId) {
+    if (targetPlayerId === playerId) return { error: "Escolha outro jogador para trocar." };
+    const target = getPlayerState(state, targetPlayerId);
+    if (!target) return { error: "Jogador alvo não encontrado." };
+
+    [player.hand, target.hand] = [target.hand, player.hand];
+    player.hasCalledOne = player.hand.length === 1 ? player.hasCalledOne : false;
+    target.hasCalledOne = target.hand.length === 1 ? target.hasCalledOne : false;
+    state.lastAction = `${playerName(room, playerId)} trocou de mão com ${playerName(room, targetPlayerId)}.`;
+  } else {
+    state.lastAction = `${playerName(room, playerId)} ignorou a troca de mão.`;
+  }
+
+  state.pendingHandSwap = undefined;
+  state.currentPlayerId = calculateNextPlayer(state, 1);
   return {};
 }
 
@@ -335,6 +433,25 @@ export function challengeOne(
   return {};
 }
 
+export function playerNeedsOneCall(room: RoomState, playerId: string): boolean {
+  const state = getFourColorsState(room);
+  const player = state ? getPlayerState(state, playerId) : undefined;
+  return !!player && player.hand.length === 1 && !player.hasCalledOne && !state?.winnerId;
+}
+
+export function penalizeMissedOne(room: RoomState, targetPlayerId: string): boolean {
+  const state = getFourColorsState(room);
+  if (!state) return false;
+
+  const target = getPlayerState(state, targetPlayerId);
+  if (!target || target.hand.length !== 1 || target.hasCalledOne) return false;
+
+  drawCards(state, targetPlayerId, 2);
+  target.hasCalledOne = false;
+  state.lastAction = `${playerName(room, targetPlayerId)} esqueceu o 1 e comprou +2.`;
+  return true;
+}
+
 export function toClientFourColorsState(
   room: RoomState,
   playerId: string
@@ -367,8 +484,18 @@ export function toClientFourColorsState(
     currentType: state.currentType,
     currentValue: state.currentValue,
     pendingColorChoice: state.pendingColorChoice,
+    pendingDrawAmount: state.pendingDrawAmount,
+    pendingDrawType: state.pendingDrawType,
+    pendingDrawPlayerId: state.pendingDrawPlayerId,
+    pendingHandSwap: state.pendingHandSwap,
     winnerId: state.winnerId,
     lastAction: state.lastAction,
-    canPass: localPlayer?.drewThisTurn === true && state.currentPlayerId === playerId,
+    canPass:
+      state.currentPlayerId === playerId &&
+      !state.pendingColorChoice &&
+      !state.pendingHandSwap &&
+      (!!state.pendingDrawAmount ||
+        !!localPlayer?.drewThisTurn ||
+        !!localPlayer?.hand.some((card) => canPlayCard(card, state))),
   };
 }

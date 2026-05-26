@@ -26,6 +26,8 @@ import {
   type PsychicSubmitThemePayload,
   type FourColorsChallengeOnePayload,
   type FourColorsChooseColorPayload,
+  type FourColorsChooseHandSwapTargetPayload,
+  type FourColorsOptions,
   type FourColorsPlayCardPayload,
   type RoomCreatePayload,
   type RoomErrorPayload,
@@ -48,7 +50,8 @@ interface GameContextValue {
     selectedGame?: SelectedGame,
     mode?: GameMode,
     cardSource?: CardSource,
-    cardThemes?: CardTheme[]
+    cardThemes?: CardTheme[],
+    fourColorsOptions?: FourColorsOptions
   ) => Promise<ClientRoomState>;
   joinRoom: (code: string, name: string, playerId?: string) => Promise<ClientRoomState>;
   leaveRoom: () => void;
@@ -68,6 +71,7 @@ interface GameContextValue {
   fourColorsCallOne: () => void;
   fourColorsChallengeOne: (targetPlayerId: string) => void;
   fourColorsPassTurn: () => void;
+  fourColorsChooseHandSwapTarget: (targetPlayerId?: string) => void;
   fourColorsRestart: () => void;
 }
 
@@ -186,12 +190,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       selectedGame: SelectedGame = "entre-extremos",
       mode: GameMode = "couple",
       cardSource: CardSource = "deck",
-      cardThemes?: CardTheme[]
+      cardThemes?: CardTheme[],
+      fourColorsOptions?: FourColorsOptions
     ) => {
       const response = await emitWithAck<RoomCreatePayload, ClientRoomState | null>(
         getSocket(),
         CLIENT_EVENTS.ROOM_CREATE,
-        { name, selectedGame, mode, cardSource, cardThemes }
+        { name, selectedGame, mode, cardSource, cardThemes, fourColorsOptions }
       );
       if (!response) throw new Error("Não foi possível criar a sala.");
       setState(response);
@@ -323,6 +328,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_PASS_TURN);
   }, [getSocket]);
 
+  const fourColorsChooseHandSwapTarget = useCallback(
+    (targetPlayerId?: string) => {
+      getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_CHOOSE_HAND_SWAP_TARGET, {
+        targetPlayerId,
+      } satisfies FourColorsChooseHandSwapTargetPayload);
+    },
+    [getSocket]
+  );
+
   const fourColorsRestart = useCallback(() => {
     getSocket().emit(CLIENT_EVENTS.FOUR_COLORS_RESTART);
     setWinners([]);
@@ -356,6 +370,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     fourColorsCallOne,
     fourColorsChallengeOne,
     fourColorsPassTurn,
+    fourColorsChooseHandSwapTarget,
     fourColorsRestart,
   };
 

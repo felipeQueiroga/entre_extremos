@@ -59,6 +59,94 @@ body {
   }
 }
 
+@keyframes four-colors-draw-pulse {
+  0% {
+    transform: scale(0.98);
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.55);
+  }
+  70% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 10px rgba(14, 165, 233, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+}
+
+@keyframes four-colors-uno-pop {
+  0% {
+    transform: scale(0.85) rotate(-2deg);
+  }
+  60% {
+    transform: scale(1.08) rotate(2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes four-colors-special-flash {
+  0% {
+    background-color: rgba(245, 158, 11, 0.25);
+  }
+  100% {
+    background-color: rgb(15 23 42);
+  }
+}
+
+@keyframes four-colors-table-uno {
+  0%,
+  100% {
+    transform: translateX(0);
+    box-shadow: 0 25px 50px -12px rgba(6, 78, 59, 0.4);
+  }
+  20% {
+    transform: translateX(-6px) rotate(-0.5deg);
+    box-shadow: 0 0 34px rgba(251, 191, 36, 0.5);
+  }
+  40% {
+    transform: translateX(6px) rotate(0.5deg);
+  }
+  60% {
+    transform: translateX(-4px) rotate(-0.35deg);
+  }
+  80% {
+    transform: translateX(4px) rotate(0.35deg);
+  }
+}
+
+@keyframes four-colors-table-special {
+  0% {
+    box-shadow:
+      0 25px 50px -12px rgba(6, 78, 59, 0.4),
+      0 0 0 rgba(251, 191, 36, 0);
+    filter: brightness(1);
+  }
+  45% {
+    box-shadow:
+      0 25px 50px -12px rgba(6, 78, 59, 0.4),
+      0 0 38px rgba(251, 191, 36, 0.5);
+    filter: brightness(1.18);
+  }
+  100% {
+    box-shadow: 0 25px 50px -12px rgba(6, 78, 59, 0.4);
+    filter: brightness(1);
+  }
+}
+
+@keyframes four-colors-uno-warning {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
 .animate-reveal-fade {
   animation: reveal-fade-in 0.5s ease-out;
 }
@@ -77,4 +165,28 @@ body {
 
 .gauge-suspense-bar {
   animation: suspense-bar 3s linear forwards;
+}
+
+.four-colors-draw-pulse {
+  animation: four-colors-draw-pulse 0.45s ease-out;
+}
+
+.four-colors-uno-pop {
+  animation: four-colors-uno-pop 0.45s ease-out;
+}
+
+.four-colors-special-flash {
+  animation: four-colors-special-flash 0.55s ease-out;
+}
+
+.four-colors-table-uno {
+  animation: four-colors-table-uno 0.6s ease-out;
+}
+
+.four-colors-table-special {
+  animation: four-colors-table-special 0.75s ease-out;
+}
+
+.four-colors-uno-warning {
+  animation: four-colors-uno-warning 0.8s ease-in-out infinite;
 }

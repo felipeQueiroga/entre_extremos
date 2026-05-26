@@ -12,6 +12,11 @@ import {
   saveSession,
 } from "../utils/session";
 
+const GAME_IMAGES = {
+  "entre-extremos": "/images/ponteiro.png",
+  "quatro-cores": "/images/entre_quatro_cores.png",
+} as const;
+
 export default function Lobby() {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -76,6 +81,18 @@ export default function Lobby() {
           <header className="mb-8 text-center">
             <h1 className="text-3xl font-bold">Lobby</h1>
             <p className="mt-2 text-slate-400">Compartilhe o código com quem vai jogar</p>
+            <div className="mx-auto mt-5 max-w-md overflow-hidden rounded-3xl border border-slate-700 bg-slate-900 text-left shadow-xl">
+              <img
+                src={GAME_IMAGES[state.selectedGame]}
+                alt=""
+                className="h-44 w-full object-cover"
+                aria-hidden
+              />
+              <div className="p-4">
+                <p className="text-xs uppercase tracking-[0.25em] text-indigo-300">Jogo selecionado</p>
+                <p className="mt-1 text-xl font-bold">{selectedGameLabel}</p>
+              </div>
+            </div>
             <p className="mt-1 text-sm text-slate-500">
               Jogo: {selectedGameLabel}
             </p>

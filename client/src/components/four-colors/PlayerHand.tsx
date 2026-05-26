@@ -15,18 +15,19 @@ export default function PlayerHand({
   onPlayCard,
 }: PlayerHandProps) {
   return (
-    <section className="rounded-2xl bg-slate-900 p-4">
+    <section className="rounded-[2rem] border border-slate-700 bg-slate-950/80 p-4 shadow-2xl">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Sua mão</h2>
         <span className="text-sm text-slate-400">{cards.length} carta(s)</span>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-3">
+      <div className="flex gap-2 overflow-x-auto pb-4 pt-3">
         {cards.map((card) => {
           const playable = isTurn && playableCardIds.has(card.id);
           return (
             <Card
               key={card.id}
               card={card}
+              size="lg"
               playable={playable}
               disabled={!playable}
               onClick={() => onPlayCard(card.id)}

@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   ClientRoomState,
   ClientRoundState,
+  FourColorsOptions,
   GameMode,
   Player,
   RoomState,
@@ -18,9 +19,12 @@ import {
   callOne,
   challengeOne,
   chooseColor,
+  chooseHandSwapTarget,
   drawCard,
   passTurn,
+  penalizeMissedOne,
   playCard,
+  playerNeedsOneCall,
   startFourColorsGame,
   toClientFourColorsState,
 } from "./fourColors";
@@ -36,6 +40,7 @@ const MAX_TEAM_PLAYERS = 8;
 const MAX_CHAT_MESSAGES = 50;
 const SUSPENSE_MS = 3000;
 const CHAT_COOLDOWN_MS = 1000;
+const ONE_CALL_GRACE_MS = 2000;
 
 type BroadcastFn = (roomCode: string) => void;
 
@@ -44,6 +49,7 @@ export class RoomManager {
   private playerToRoom = new Map<string, string>();
   private socketToPlayer = new Map<string, string>();
   private suspenseTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private oneCallTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private chatCooldown = new Map<string, number>();
   private broadcast: BroadcastFn = () => {};
 
@@ -66,7 +72,8 @@ export class RoomManager {
     selectedGame: SelectedGame = "entre-extremos",
     mode: GameMode = "couple",
     cardSource: CardSource = "deck",
-    cardThemes?: CardTheme[]
+    cardThemes?: CardTheme[],
+    fourColorsOptions: FourColorsOptions = { zeroSwapEnabled: false }
   ): { room: RoomState; player: Player } {
     const code = this.generateCode();
     const player: Player = {
@@ -86,6 +93,7 @@ export class RoomManager {
       mode,
       cardSource,
       cardThemes: normalizeCardThemes(cardThemes),
+      fourColorsOptions,
       messages: [],
       winningScore: 10,
       usedCardIds: [],
@@ -163,6 +171,7 @@ export class RoomManager {
     const connected = room.players.filter((p) => p.connected);
     if (connected.length === 0) {
       this.clearSuspenseTimer(code);
+      this.clearOneCallTimersForRoom(code);
       this.rooms.delete(code);
       return null;
     }
@@ -243,7 +252,7 @@ export class RoomManager {
     room.status = "playing";
     room.usedCardIds = [];
     connected.forEach((p) => {
-      room.score[p.id] = 0;
+      room.score[p.id] = room.selectedGame === "quatro-cores" ? (room.score[p.id] ?? 0) : 0;
     });
     if (room.teamScore) {
       room.teamScore = { A: 0, B: 0 };
@@ -436,6 +445,45 @@ export class RoomManager {
     }
   }
 
+  private oneCallTimerKey(roomCode: string, playerId: string): string {
+    return `${roomCode}:${playerId}`;
+  }
+
+  private clearOneCallTimer(roomCode: string, playerId: string): void {
+    const key = this.oneCallTimerKey(roomCode, playerId);
+    const timer = this.oneCallTimers.get(key);
+    if (timer) {
+      clearTimeout(timer);
+      this.oneCallTimers.delete(key);
+    }
+  }
+
+  private clearOneCallTimersForRoom(roomCode: string): void {
+    for (const [key, timer] of this.oneCallTimers) {
+      if (key.startsWith(`${roomCode}:`)) {
+        clearTimeout(timer);
+        this.oneCallTimers.delete(key);
+      }
+    }
+  }
+
+  private scheduleOneCallPenalty(room: RoomState, playerId: string): void {
+    this.clearOneCallTimer(room.code, playerId);
+    if (!playerNeedsOneCall(room, playerId)) return;
+
+    const key = this.oneCallTimerKey(room.code, playerId);
+    const timer = setTimeout(() => {
+      this.oneCallTimers.delete(key);
+      const currentRoom = this.rooms.get(room.code);
+      if (!currentRoom || currentRoom.status !== "playing") return;
+      if (penalizeMissedOne(currentRoom, playerId)) {
+        this.broadcast(currentRoom.code);
+      }
+    }, ONE_CALL_GRACE_MS);
+
+    this.oneCallTimers.set(key, timer);
+  }
+
   sendChat(playerId: string, text: string): { error?: string; message?: ChatMessage } {
     const room = this.getRoomByPlayer(playerId);
     if (!room) return { error: "Sala não encontrada." };
@@ -535,11 +583,12 @@ export class RoomManager {
     if (!host?.isHost) return { error: "Apenas o host pode reiniciar." };
 
     this.clearSuspenseTimer(room.code);
+    this.clearOneCallTimersForRoom(room.code);
     room.status = "lobby";
     room.currentRound = undefined;
     room.usedCardIds = [];
     room.players.filter((p) => p.connected).forEach((p) => {
-      room.score[p.id] = 0;
+      room.score[p.id] = room.selectedGame === "quatro-cores" ? (room.score[p.id] ?? 0) : 0;
     });
     if (room.teamScore) {
       room.teamScore = { A: 0, B: 0 };
@@ -608,6 +657,7 @@ export class RoomManager {
       mode: room.mode,
       cardSource: room.cardSource,
       cardThemes: room.cardThemes,
+      fourColorsOptions: room.fourColorsOptions,
       messages: room.messages,
       currentRound: clientRound,
       gameState:
@@ -622,7 +672,9 @@ export class RoomManager {
   playFourColorsCard(playerId: string, cardId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return playCard(room, playerId, cardId);
+    const result = playCard(room, playerId, cardId);
+    if (!result.error) this.scheduleOneCallPenalty(room, playerId);
+    return result;
   }
 
   drawFourColorsCard(playerId: string): { error?: string } {
@@ -646,13 +698,23 @@ export class RoomManager {
   callFourColorsOne(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return callOne(room, playerId);
+    const result = callOne(room, playerId);
+    if (!result.error) this.clearOneCallTimer(room.code, playerId);
+    return result;
   }
 
   challengeFourColorsOne(playerId: string, targetPlayerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
-    return challengeOne(room, playerId, targetPlayerId);
+    const result = challengeOne(room, playerId, targetPlayerId);
+    if (!result.error) this.clearOneCallTimer(room.code, targetPlayerId);
+    return result;
+  }
+
+  chooseFourColorsHandSwapTarget(playerId: string, targetPlayerId?: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "quatro-cores") return { error: "Jogo indisponível." };
+    return chooseHandSwapTarget(room, playerId, targetPlayerId);
   }
 }
 
