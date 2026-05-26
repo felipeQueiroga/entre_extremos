@@ -76,7 +76,7 @@ export default function Card({
       } ${
         colorClass
       } ${playable ? "translate-y-[-10px] ring-4 ring-emerald-300" : ""} ${
-        disabled && onClick ? "cursor-not-allowed opacity-60" : "hover:translate-y-[-6px]"
+        disabled && onClick ? "cursor-not-allowed" : "hover:translate-y-[-6px]"
       }`}
     >
       <span className="absolute left-2 top-2 text-xs uppercase tracking-wide opacity-80">

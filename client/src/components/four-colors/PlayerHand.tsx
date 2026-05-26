@@ -20,18 +20,22 @@ export default function PlayerHand({
         <h2 className="text-lg font-semibold">Sua mão</h2>
         <span className="text-sm text-slate-400">{cards.length} carta(s)</span>
       </div>
-      <div className="four-colors-hand-scroll flex flex-wrap justify-center gap-2 pb-1 pt-3">
-        {cards.map((card) => {
+      <div className="four-colors-hand-scroll flex flex-wrap justify-center pb-1 pt-3">
+        {cards.map((card, index) => {
           const playable = isTurn && playableCardIds.has(card.id);
           return (
-            <Card
+            <div
               key={card.id}
-              card={card}
-              size="hand"
-              playable={playable}
-              disabled={!playable}
-              onClick={() => onPlayCard(card.id)}
-            />
+              className={`four-colors-hand-card relative ${index > 0 ? "-ml-3 sm:-ml-4 lg:-ml-5" : ""}`}
+            >
+              <Card
+                card={card}
+                size="hand"
+                playable={playable}
+                disabled={!playable}
+                onClick={() => onPlayCard(card.id)}
+              />
+            </div>
           );
         })}
       </div>

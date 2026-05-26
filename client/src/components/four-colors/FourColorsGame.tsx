@@ -157,7 +157,7 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
             />
           </div>
           <div className="h-24 w-px bg-emerald-200/20 max-md:hidden" />
-          <div className="flex flex-col items-center gap-2">
+          <div className="four-colors-one-area flex flex-col items-center gap-2">
             <span className="text-xs uppercase tracking-[0.25em] text-emerald-100/70">Botão 1</span>
             <OneButton
               disabled={localPlayer?.cardCount !== 1 || localPlayer?.hasCalledOne === true}

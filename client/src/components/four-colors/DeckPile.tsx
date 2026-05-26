@@ -10,7 +10,7 @@ interface DeckPileProps {
 
 export default function DeckPile({ disabled, canPass, passHint, onDraw, onPass }: DeckPileProps) {
   return (
-    <div className="w-full min-w-28 text-center sm:w-auto">
+    <div className="four-colors-deck-pile w-full min-w-28 text-center sm:w-auto">
       <button
         type="button"
         onClick={onDraw}
