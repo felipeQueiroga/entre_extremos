@@ -68,12 +68,12 @@ export default function Home() {
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-10">
       <header className="mb-10 text-center">
-        <p className="text-sm uppercase tracking-[0.3em] text-indigo-400">Jogo online</p>
-        <h1 className="mt-2 text-4xl font-bold sm:text-5xl">Entre Extremos</h1>
+        <p className="text-sm uppercase tracking-[0.3em] text-indigo-400">Jogos online</p>
+        <h1 className="mt-2 text-4xl font-bold sm:text-5xl">Boa Diversão</h1>
         <p className="mt-4 text-lg text-slate-300">
-          Um jogo de pistas, interpretação e percepção. Um jogador recebe uma escala com dois
-          conceitos opostos e precisa dar uma dica para que o parceiro descubra onde está o alvo
-          secreto.
+          Reuna seus amigos em uma sala e escolha entre jogos coletivos leves, caóticos e
+          divertidos. Cada partida foi feita para render risadas, blefes, palpites improváveis e
+          bons momentos juntos.
         </p>
       </header>
 
@@ -238,7 +238,7 @@ export default function Home() {
         </div>
 
         <div className="rounded-2xl bg-slate-900 p-6 ring-1 ring-slate-800">
-          <h2 className="mb-4 text-xl font-semibold">Entrar na sala</h2>
+          <h2 className="mb-4 text-xl font-semibold">Se juntar a uma sala</h2>
           <label className="mb-2 block text-sm text-slate-400">Seu nome</label>
           <input
             type="text"
@@ -262,7 +262,7 @@ export default function Home() {
             disabled={loading || !connected || !name.trim() || code.trim().length < 4}
             className="w-full rounded-lg bg-sky-600 py-3 font-semibold hover:bg-sky-500 disabled:opacity-40"
           >
-            Entrar na sala
+            Se juntar a sala
           </button>
         </div>
       </section>

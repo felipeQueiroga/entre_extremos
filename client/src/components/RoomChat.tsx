@@ -21,7 +21,7 @@ export default function RoomChat() {
   }
 
   return (
-    <div className="flex h-full min-h-[200px] flex-col rounded-2xl border border-slate-700 bg-slate-900/80">
+    <div className="room-chat flex h-full min-h-[8.5rem] flex-col rounded-2xl border border-slate-700 bg-slate-900/80">
       <div className="border-b border-slate-700 px-4 py-2 font-semibold text-slate-300">Chat</div>
       <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
         {messages.length === 0 && (

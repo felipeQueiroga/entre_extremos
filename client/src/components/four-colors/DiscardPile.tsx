@@ -22,17 +22,17 @@ const COLOR_ACCENTS: Record<CardColor, string> = {
 
 export default function DiscardPile({ card, currentColor }: DiscardPileProps) {
   return (
-    <div className="text-center">
+    <div className="four-colors-discard text-center">
       <div
-        className={`relative mx-auto h-40 w-28 rounded-[2rem] border-4 shadow-2xl transition ${COLOR_ACCENTS[currentColor]}`}
+        className={`relative mx-auto h-32 w-24 rounded-[2rem] border-4 shadow-2xl transition sm:h-36 sm:w-24 lg:h-40 lg:w-28 ${COLOR_ACCENTS[currentColor]}`}
       >
-        <div className="absolute left-2 top-3 h-36 w-24 rotate-6 rounded-3xl border-[5px] border-white bg-slate-700 opacity-50 shadow-xl" />
-        <div className="absolute left-1 top-2 h-36 w-24 -rotate-3 rounded-3xl border-[5px] border-white bg-slate-800 opacity-60 shadow-xl" />
+        <div className="absolute left-2 top-3 h-28 w-20 rotate-6 rounded-3xl border-[5px] border-white bg-slate-700 opacity-50 shadow-xl sm:h-32 sm:w-20 lg:h-36 lg:w-24" />
+        <div className="absolute left-1 top-2 h-28 w-20 -rotate-3 rounded-3xl border-[5px] border-white bg-slate-800 opacity-60 shadow-xl sm:h-32 sm:w-20 lg:h-36 lg:w-24" />
         <div className="absolute inset-0">
-          <Card card={card} disabled size="lg" />
+          <Card card={card} disabled size="responsive" />
         </div>
       </div>
-      <p className="mt-4 rounded-full bg-slate-950/60 px-4 py-2 text-sm text-slate-200">
+      <p className="mt-2 rounded-full bg-slate-950/60 px-3 py-2 text-xs text-slate-200 sm:mt-4 sm:px-4 sm:text-sm">
         Cor atual: <strong>{COLOR_LABELS[currentColor]}</strong>
       </p>
     </div>

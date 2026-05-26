@@ -96,16 +96,16 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
     playableCardIds.size === 0;
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
+    <div className="four-colors-game min-h-0 min-w-0">
+      <header className="four-colors-title flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm text-slate-400">Sala {state.code}</p>
           <h1 className="text-2xl font-bold">Entre Quatro Cores</h1>
         </div>
       </header>
 
-      <div className={`rounded-[2rem] border border-emerald-300/20 bg-emerald-950/60 p-3 shadow-2xl shadow-emerald-950/40 sm:rounded-[3rem] sm:p-4 md:p-6 ${tableAnimation}`}>
-        <div className="mb-4 grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-center">
+      <div className={`four-colors-table rounded-[2rem] border border-emerald-300/20 bg-emerald-950/60 p-3 shadow-2xl shadow-emerald-950/40 sm:rounded-[3rem] sm:p-4 md:p-6 ${tableAnimation}`}>
+        <div className="four-colors-status mb-4 grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-center">
           <div className="rounded-2xl border border-amber-300/40 bg-amber-950/40 px-4 py-3 shadow-lg">
             <p className="text-xs uppercase tracking-[0.25em] text-amber-200/80">Vez de</p>
             <p className="text-lg font-black text-amber-100">{currentPlayer?.name ?? "Jogador"}</p>
@@ -146,7 +146,7 @@ export default function FourColorsGame({ state }: FourColorsGameProps) {
           onChallenge={fourColorsChallengeOne}
         />
 
-        <div className="my-4 flex flex-wrap items-center justify-center gap-4 rounded-[2rem] border border-emerald-300/20 bg-emerald-900/30 p-3 shadow-inner sm:p-5 md:grid md:grid-cols-[1fr_auto_auto_auto_1fr] md:gap-6">
+        <div className="four-colors-center my-4 flex flex-wrap items-center justify-center gap-4 rounded-[2rem] border border-emerald-300/20 bg-emerald-900/30 p-3 shadow-inner sm:p-5 md:grid md:grid-cols-[1fr_auto_auto_auto_1fr] md:gap-6">
           <div className="flex justify-center md:justify-end">
             <DeckPile
               disabled={!isLocalTurn || !!game.pendingColorChoice || !!game.pendingHandSwap}
