@@ -30,7 +30,7 @@ const RANK_VALUE: Record<PokerRank, number> = {
 
 const HAND_LABELS = [
   "Carta alta",
-  "Par",
+  "Um par",
   "Dois pares",
   "Trinca",
   "Sequência",
@@ -283,7 +283,16 @@ function finishHand(room: RoomState, state: PokerGameState): void {
   state.currentPlayerId = undefined;
   state.currentBet = 0;
   state.pot = 0;
-  state.lastAction = `${state.winners.map((id) => playerName(room, id)).join(", ")} venceu a mão.`;
+  const winnerLabels = [
+    ...new Set(
+      state.handResults
+        ?.filter((result) => state.winners?.includes(result.playerId))
+        .map((result) => result.label)
+        .filter((label) => label !== "Venceu por desistência") ?? []
+    ),
+  ];
+  const handLabel = winnerLabels.length > 0 ? ` com ${winnerLabels.join(" / ")}` : "";
+  state.lastAction = `${state.winners.map((id) => playerName(room, id)).join(", ")} venceu a mão${handLabel}.`;
 }
 
 function advanceAfterAction(room: RoomState, state: PokerGameState): void {

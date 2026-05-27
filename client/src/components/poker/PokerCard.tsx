@@ -18,10 +18,11 @@ interface PokerCardProps {
   card?: PokerCardType;
   hidden?: boolean;
   compact?: boolean;
+  highlighted?: boolean;
 }
 
-export default function PokerCard({ card, hidden = false, compact = false }: PokerCardProps) {
-  const size = compact ? "h-16 w-11 text-sm" : "h-24 w-16 text-lg sm:h-28 sm:w-20";
+export default function PokerCard({ card, hidden = false, compact = false, highlighted = false }: PokerCardProps) {
+  const size = compact ? "h-14 w-10 text-xs" : "h-20 w-14 text-base sm:h-24 sm:w-16";
 
   if (hidden || !card) {
     return (
@@ -34,9 +35,13 @@ export default function PokerCard({ card, hidden = false, compact = false }: Pok
   }
 
   return (
-    <div className={`${size} flex flex-col justify-between rounded-lg bg-slate-50 p-1.5 font-black shadow-lg ring-1 ring-slate-950/20`}>
+    <div
+      className={`${size} flex flex-col justify-between rounded-lg bg-slate-50 p-1.5 font-black shadow-lg ring-1 ring-slate-950/20 ${
+        highlighted ? "scale-105 ring-4 ring-amber-300 shadow-amber-300/50" : ""
+      }`}
+    >
       <span className={`${SUIT_COLOR[card.suit]} leading-none`}>{card.rank}</span>
-      <span className={`${SUIT_COLOR[card.suit]} self-center text-2xl leading-none sm:text-3xl`}>
+      <span className={`${SUIT_COLOR[card.suit]} self-center text-xl leading-none sm:text-2xl`}>
         {SUIT_SYMBOL[card.suit]}
       </span>
       <span className={`${SUIT_COLOR[card.suit]} rotate-180 self-end leading-none`}>{card.rank}</span>

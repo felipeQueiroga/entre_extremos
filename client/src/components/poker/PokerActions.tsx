@@ -32,8 +32,8 @@ export default function PokerActions({
   }, [game.minBet, game.currentPlayerId]);
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/90 p-4 shadow-xl">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <section className="rounded-xl border border-slate-800 bg-slate-950/90 p-3 shadow-xl">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-100">Ações</p>
           <p className="text-xs text-slate-400">
@@ -48,7 +48,7 @@ export default function PokerActions({
       </div>
 
       {(game.canBet || game.canRaise) && (
-        <label className="mb-3 block text-sm text-slate-400">
+        <label className="mb-2 block text-xs text-slate-400">
           Valor {game.canRaise ? "total da aposta" : "da aposta"}
           <input
             type="number"
@@ -56,17 +56,17 @@ export default function PokerActions({
             max={maxAmount}
             value={amount}
             onChange={(event) => setAmount(Number(event.target.value))}
-            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+            className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100"
           />
         </label>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-2">
         <button
           type="button"
           onClick={onCheck}
           disabled={!game.canCheck}
-          className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-bold hover:bg-slate-600 disabled:opacity-40"
+          className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold hover:bg-slate-600 disabled:opacity-40"
         >
           Check
         </button>
@@ -74,7 +74,7 @@ export default function PokerActions({
           type="button"
           onClick={onCall}
           disabled={!game.canCall}
-          className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-bold hover:bg-sky-500 disabled:opacity-40"
+          className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-bold hover:bg-sky-500 disabled:opacity-40"
         >
           Pagar
         </button>
@@ -82,7 +82,7 @@ export default function PokerActions({
           type="button"
           onClick={() => onBet(amount)}
           disabled={!game.canBet}
-          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold hover:bg-emerald-500 disabled:opacity-40"
+          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold hover:bg-emerald-500 disabled:opacity-40"
         >
           Apostar
         </button>
@@ -90,7 +90,7 @@ export default function PokerActions({
           type="button"
           onClick={() => onRaise(amount)}
           disabled={!game.canRaise}
-          className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold hover:bg-indigo-500 disabled:opacity-40"
+          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold hover:bg-indigo-500 disabled:opacity-40"
         >
           Aumentar
         </button>
@@ -98,7 +98,7 @@ export default function PokerActions({
           type="button"
           onClick={onAllIn}
           disabled={!game.canAllIn}
-          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-slate-950 hover:bg-amber-400 disabled:opacity-40"
+          className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-black text-slate-950 hover:bg-amber-400 disabled:opacity-40"
         >
           All-in
         </button>
@@ -106,7 +106,7 @@ export default function PokerActions({
           type="button"
           onClick={onFold}
           disabled={!game.canFold}
-          className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-bold hover:bg-rose-600 disabled:opacity-40"
+          className="rounded-lg bg-rose-700 px-3 py-1.5 text-xs font-bold hover:bg-rose-600 disabled:opacity-40"
         >
           Desistir
         </button>

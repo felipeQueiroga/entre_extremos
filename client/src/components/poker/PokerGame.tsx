@@ -4,7 +4,6 @@ import { isHost } from "../../hooks/useGameHelpers";
 import PokerActions from "./PokerActions";
 import PokerCard from "./PokerCard";
 import PokerHandSummary from "./PokerHandSummary";
-import PokerPlayerSeat from "./PokerPlayerSeat";
 import PokerTable from "./PokerTable";
 
 interface PokerGameProps {
@@ -40,18 +39,23 @@ export default function PokerGame({ state }: PokerGameProps) {
 
   const currentName = game.players.find((player) => player.playerId === game.currentPlayerId)?.name;
   const localPlayer = game.players.find((player) => player.playerId === state.playerId);
+  const winningCardIds = new Set(
+    (game.handResults ?? [])
+      .filter((result) => game.winners?.includes(result.playerId))
+      .flatMap((result) => result.cards.map((card) => card.id))
+  );
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-2">
+      <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-emerald-300">
               Mão #{game.handNumber}
             </p>
-            <h2 className="text-2xl font-black">Poker Texas Hold'em</h2>
+            <h2 className="text-xl font-black sm:text-2xl">Poker Texas Hold'em</h2>
           </div>
-          <div className="text-right text-sm text-slate-300">
+          <div className="text-right text-xs text-slate-300 sm:text-sm">
             <p>Jogador da vez: {currentName ?? "aguardando"}</p>
             <p>
               Blinds {state.pokerOptions.smallBlind}/{state.pokerOptions.bigBlind}
@@ -60,67 +64,64 @@ export default function PokerGame({ state }: PokerGameProps) {
         </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {game.players.map((player, index) => (
-          <PokerPlayerSeat
-            key={player.playerId}
-            player={player}
-            isCurrent={player.playerId === game.currentPlayerId}
-            isDealer={index === game.dealerIndex}
-            isWinner={(game.winners ?? []).includes(player.playerId)}
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_230px]">
+        <PokerTable game={game} localPlayerId={state.playerId} />
+
+        <div className="space-y-2">
+          <section className="rounded-xl border border-slate-800 bg-slate-900/90 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold">Sua mão</p>
+                <p className="text-xs text-slate-400">
+                  Fichas: {localPlayer?.chips ?? 0} · Aposta: {localPlayer?.currentBet ?? 0}
+                </p>
+              </div>
+              {game.phase === "hand-ended" && isHost(state) && (
+                <button
+                  type="button"
+                  onClick={pokerNextHand}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold hover:bg-emerald-500"
+                >
+                  Próxima
+                </button>
+              )}
+            </div>
+            <div className="flex justify-center -space-x-4">
+              {(game.hand.length ? game.hand : [undefined, undefined]).slice(0, 2).map((card, index) => (
+                <PokerCard
+                  key={card?.id ?? index}
+                  card={card}
+                  hidden={!card}
+                  highlighted={!!card && winningCardIds.has(card.id)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <PokerActions
+            game={game}
+            localPlayerId={state.playerId}
+            onFold={pokerFold}
+            onCheck={pokerCheck}
+            onCall={pokerCall}
+            onBet={pokerBet}
+            onRaise={pokerRaise}
+            onAllIn={pokerAllIn}
           />
-        ))}
-      </div>
 
-      <PokerTable game={game} />
+          <PokerHandSummary game={game} />
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold">Sua mão</p>
-            <p className="text-xs text-slate-400">
-              Fichas: {localPlayer?.chips ?? 0} · Aposta atual: {localPlayer?.currentBet ?? 0}
-            </p>
-          </div>
-          {game.phase === "hand-ended" && isHost(state) && (
+          {isHost(state) && (
             <button
               type="button"
-              onClick={pokerNextHand}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold hover:bg-emerald-500"
+              onClick={pokerRestart}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-900"
             >
-              Próxima mão
+              Voltar ao lobby / reiniciar mesa
             </button>
           )}
         </div>
-        <div className="flex justify-center -space-x-5">
-          {(game.hand.length ? game.hand : [undefined, undefined]).slice(0, 2).map((card, index) => (
-            <PokerCard key={card?.id ?? index} card={card} hidden={!card} />
-          ))}
-        </div>
-      </section>
-
-      <PokerActions
-        game={game}
-        localPlayerId={state.playerId}
-        onFold={pokerFold}
-        onCheck={pokerCheck}
-        onCall={pokerCall}
-        onBet={pokerBet}
-        onRaise={pokerRaise}
-        onAllIn={pokerAllIn}
-      />
-
-      <PokerHandSummary game={game} />
-
-      {isHost(state) && (
-        <button
-          type="button"
-          onClick={pokerRestart}
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-bold text-slate-200 hover:bg-slate-900"
-        >
-          Voltar ao lobby / reiniciar mesa
-        </button>
-      )}
+      </div>
     </div>
   );
 }

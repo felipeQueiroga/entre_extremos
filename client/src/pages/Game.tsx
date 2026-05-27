@@ -81,15 +81,17 @@ export default function Game() {
             </p>
           )}
 
-          <section className="four-colors-score mb-5 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 sm:p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
-                Placar
-              </h2>
-              <span className="text-xs text-slate-500">Sala {state.code}</span>
-            </div>
-            <ScoreBoard state={state} />
-          </section>
+          {!isPoker && (
+            <section className="four-colors-score mb-5 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 sm:p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  Placar
+                </h2>
+                <span className="text-xs text-slate-500">Sala {state.code}</span>
+              </div>
+              <ScoreBoard state={state} />
+            </section>
+          )}
 
           {isPoker ? (
             <PokerGame state={state} />
