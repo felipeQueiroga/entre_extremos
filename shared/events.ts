@@ -9,6 +9,7 @@ import type {
   GameMode,
   PokerOptions,
   SelectedGame,
+  StopOptions,
 } from "./types";
 
 export const SERVER_EVENTS = {
@@ -52,6 +53,11 @@ export const CLIENT_EVENTS = {
   POKER_ALL_IN: "poker:allIn",
   POKER_NEXT_HAND: "poker:nextHand",
   POKER_RESTART: "poker:restart",
+  STOP_START: "stop:start",
+  STOP_SUBMIT_ANSWERS: "stop:submitAnswers",
+  STOP_CALL_STOP: "stop:callStop",
+  STOP_VOTE: "stop:vote",
+  STOP_NEXT_ROUND: "stop:nextRound",
 } as const;
 
 export interface RoomCreatePayload {
@@ -62,6 +68,17 @@ export interface RoomCreatePayload {
   cardThemes?: CardTheme[];
   fourColorsOptions?: FourColorsOptions;
   pokerOptions?: PokerOptions;
+  stopOptions?: StopOptions;
+}
+
+export interface StopSubmitAnswersPayload {
+  answers: Record<string, string>;
+}
+
+export interface StopVotePayload {
+  categoryId: CardTheme;
+  answerOwnerId: string;
+  valid: boolean;
 }
 
 export interface RoomJoinPayload {

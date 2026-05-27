@@ -13,6 +13,7 @@ import type {
   RoomState,
   RoundState,
   SelectedGame,
+  StopOptions,
   Team,
 } from "@entre-extremos/shared";
 import { normalizeCardThemes, pickRandomCard, randomTargetPosition } from "./cards";
@@ -44,6 +45,18 @@ import {
   toClientPokerState,
 } from "./poker";
 import {
+  callStop as callStopEngine,
+  DEFAULT_STOP_OPTIONS_SERVER,
+  getPhaseDeadlineMs,
+  nextStopRound as nextStopRoundEngine,
+  normalizeStopOptions,
+  penalizeStopPhaseTimeout,
+  startStopGame,
+  submitStopAnswers as submitStopAnswersEngine,
+  toClientStopState,
+  voteStopAnswer as voteStopAnswerEngine,
+} from "./stop";
+import {
   calculateRoundResult,
   getTeamWinners,
   getWinners,
@@ -53,6 +66,7 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_COUPLE_PLAYERS = 2;
 const MAX_TEAM_PLAYERS = 8;
 const MAX_POKER_PLAYERS = 8;
+const MAX_STOP_PLAYERS = 8;
 const MAX_CHAT_MESSAGES = 50;
 const SUSPENSE_MS = 3000;
 const CHAT_COOLDOWN_MS = 1000;
@@ -70,6 +84,7 @@ export class RoomManager {
   private oneCallTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private fourColorsTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private pokerTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private stopPhaseTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private chatCooldown = new Map<string, number>();
   private broadcast: BroadcastFn = () => {};
 
@@ -94,7 +109,8 @@ export class RoomManager {
     cardSource: CardSource = "deck",
     cardThemes?: CardTheme[],
     fourColorsOptions: FourColorsOptions = { zeroSwapEnabled: false },
-    pokerOptions: PokerOptions = DEFAULT_POKER_OPTIONS
+    pokerOptions: PokerOptions = DEFAULT_POKER_OPTIONS,
+    stopOptions: StopOptions = DEFAULT_STOP_OPTIONS_SERVER
   ): { room: RoomState; player: Player } {
     const code = this.generateCode();
     const player: Player = {
@@ -116,6 +132,7 @@ export class RoomManager {
       cardThemes: normalizeCardThemes(cardThemes),
       fourColorsOptions,
       pokerOptions,
+      stopOptions: normalizeStopOptions(stopOptions),
       messages: [],
       winningScore: 10,
       usedCardIds: [],
@@ -143,7 +160,7 @@ export class RoomManager {
     const maxPlayers =
       room.selectedGame === "texas-holdem"
         ? MAX_POKER_PLAYERS
-        : room.selectedGame === "quatro-cores"
+        : room.selectedGame === "quatro-cores" || room.selectedGame === "stop"
         ? MAX_TEAM_PLAYERS
         : room.mode === "couple"
           ? MAX_COUPLE_PLAYERS
@@ -261,7 +278,11 @@ export class RoomManager {
     if (!host?.isHost) return { error: "Apenas o host pode iniciar." };
 
     const connected = room.players.filter((p) => p.connected);
-    if (room.selectedGame === "quatro-cores" || room.selectedGame === "texas-holdem") {
+    if (
+      room.selectedGame === "quatro-cores" ||
+      room.selectedGame === "texas-holdem" ||
+      room.selectedGame === "stop"
+    ) {
       if (connected.length < 2) {
         return { error: "São necessários pelo menos 2 jogadores." };
       }
@@ -280,7 +301,9 @@ export class RoomManager {
     room.usedCardIds = [];
     connected.forEach((p) => {
       room.score[p.id] =
-        room.selectedGame === "quatro-cores" || room.selectedGame === "texas-holdem"
+        room.selectedGame === "quatro-cores" ||
+        room.selectedGame === "texas-holdem" ||
+        room.selectedGame === "stop"
           ? (room.score[p.id] ?? 0)
           : 0;
     });
@@ -299,6 +322,13 @@ export class RoomManager {
       const result = startPokerGame(room);
       if (result.error) return result;
       this.schedulePokerTurnTimer(room);
+      return result;
+    }
+
+    if (room.selectedGame === "stop") {
+      const result = startStopGame(room);
+      if (result.error) return result;
+      this.scheduleStopPhaseTimer(room);
       return result;
     }
 
@@ -617,6 +647,51 @@ export class RoomManager {
     this.pokerTurnTimers.set(room.code, timer);
   }
 
+  private clearStopPhaseTimer(roomCode: string): void {
+    const timer = this.stopPhaseTimers.get(roomCode);
+    if (timer) {
+      clearTimeout(timer);
+      this.stopPhaseTimers.delete(roomCode);
+    }
+    const room = this.rooms.get(roomCode);
+    if (room?.gameState?.kind === "stop") {
+      room.gameState.turnDeadlineAt = undefined;
+    }
+  }
+
+  private scheduleStopPhaseTimer(room: RoomState): void {
+    this.clearStopPhaseTimer(room.code);
+    if (
+      room.status !== "playing" ||
+      room.selectedGame !== "stop" ||
+      room.gameState?.kind !== "stop"
+    ) {
+      return;
+    }
+
+    const state = room.gameState;
+    if (state.isGameOver || state.phase === "round-ended" || state.phase === "game-over") {
+      state.turnDeadlineAt = undefined;
+      return;
+    }
+
+    const durationMs = getPhaseDeadlineMs(room, state);
+    if (!durationMs) return;
+
+    state.turnDeadlineAt = Date.now() + durationMs;
+    const timer = setTimeout(() => {
+      this.stopPhaseTimers.delete(room.code);
+      const currentRoom = this.rooms.get(room.code);
+      if (!currentRoom || currentRoom.status !== "playing") return;
+      if (penalizeStopPhaseTimeout(currentRoom)) {
+        this.scheduleStopPhaseTimer(currentRoom);
+        this.broadcast(currentRoom.code);
+      }
+    }, durationMs);
+
+    this.stopPhaseTimers.set(room.code, timer);
+  }
+
   sendChat(playerId: string, text: string): { error?: string; message?: ChatMessage } {
     const room = this.getRoomByPlayer(playerId);
     if (!room) return { error: "Sala não encontrada." };
@@ -719,12 +794,15 @@ export class RoomManager {
     this.clearOneCallTimersForRoom(room.code);
     this.clearFourColorsTurnTimer(room.code);
     this.clearPokerTurnTimer(room.code);
+    this.clearStopPhaseTimer(room.code);
     room.status = "lobby";
     room.currentRound = undefined;
     room.usedCardIds = [];
     room.players.filter((p) => p.connected).forEach((p) => {
       room.score[p.id] =
-        room.selectedGame === "quatro-cores" || room.selectedGame === "texas-holdem"
+        room.selectedGame === "quatro-cores" ||
+        room.selectedGame === "texas-holdem" ||
+        room.selectedGame === "stop"
           ? (room.score[p.id] ?? 0)
           : 0;
     });
@@ -745,6 +823,9 @@ export class RoomManager {
   getWinnersForRoom(room: RoomState): string[] {
     if (room.selectedGame === "quatro-cores" && room.gameState?.kind === "four-colors") {
       return room.gameState.winnerId ? [room.gameState.winnerId] : [];
+    }
+    if (room.selectedGame === "stop" && room.gameState?.kind === "stop" && room.gameState.winnerIds?.length) {
+      return room.gameState.winnerIds;
     }
     return getWinners(room.score, room.winningScore);
   }
@@ -797,6 +878,7 @@ export class RoomManager {
       cardThemes: room.cardThemes,
       fourColorsOptions: room.fourColorsOptions,
       pokerOptions: room.pokerOptions,
+      stopOptions: room.stopOptions,
       messages: room.messages,
       currentRound: clientRound,
       gameState:
@@ -804,6 +886,8 @@ export class RoomManager {
           ? toClientPokerState(room, playerId)
           : room.selectedGame === "quatro-cores"
           ? toClientFourColorsState(room, playerId)
+          : room.selectedGame === "stop"
+          ? toClientStopState(room, playerId)
           : { kind: "entre-extremos", currentRound: clientRound },
       winningScore: room.winningScore,
       playerId,
@@ -943,6 +1027,47 @@ export class RoomManager {
     room.gameState = undefined;
     const result = startPokerGame(room);
     if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
+  }
+
+  submitStopAnswers(playerId: string, answers: Record<string, string>): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "stop") return { error: "Jogo indisponível." };
+    return submitStopAnswersEngine(room, playerId, answers);
+  }
+
+  callStop(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "stop") return { error: "Jogo indisponível." };
+    const result = callStopEngine(room, playerId);
+    if (!result.error) this.scheduleStopPhaseTimer(room);
+    return result;
+  }
+
+  voteStopAnswer(
+    playerId: string,
+    categoryId: CardTheme,
+    answerOwnerId: string,
+    valid: boolean
+  ): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "stop") return { error: "Jogo indisponível." };
+    const result = voteStopAnswerEngine(room, playerId, categoryId, answerOwnerId, valid);
+    if (!result.error) {
+      if (result.completed) {
+        this.clearStopPhaseTimer(room.code);
+      } else {
+        this.scheduleStopPhaseTimer(room);
+      }
+    }
+    return result;
+  }
+
+  nextStopRound(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "stop") return { error: "Jogo indisponível." };
+    const result = nextStopRoundEngine(room, playerId);
+    if (!result.error) this.scheduleStopPhaseTimer(room);
     return result;
   }
 }

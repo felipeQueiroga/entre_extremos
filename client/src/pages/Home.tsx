@@ -9,6 +9,8 @@ import {
   type GameMode,
   type PokerOptions,
   type SelectedGame,
+  DEFAULT_STOP_OPTIONS,
+  type StopOptions,
 } from "@entre-extremos/shared";
 import { useGame } from "../hooks/GameContext";
 import { roomPathForState } from "../hooks/useRoomSessionRestore";
@@ -24,6 +26,7 @@ const GAME_IMAGES: Record<SelectedGame, string> = {
   "entre-extremos": "/images/ponteiro.png",
   "quatro-cores": "/images/entre_quatro_cores.png",
   "texas-holdem": "/images/poker.png",
+  stop: "/images/Stop.png",
 };
 
 export default function Home() {
@@ -44,6 +47,7 @@ export default function Home() {
     smallBlind: 10,
     bigBlind: 20,
   });
+  const [stopOptions, setStopOptions] = useState<StopOptions>({ ...DEFAULT_STOP_OPTIONS });
 
   function toggleCardTheme(theme: CardTheme) {
     setCardThemes((current) =>
@@ -57,6 +61,9 @@ export default function Home() {
     if (!name.trim()) return;
     setSelectedGame(game);
     setConfigGame(game);
+    if (game === "stop" && cardThemes.length < 9) {
+      setCardThemes(CARD_THEME_OPTIONS.map((theme) => theme.id));
+    }
   }
 
   async function handleCreate() {
@@ -71,7 +78,8 @@ export default function Home() {
         cardSource,
         cardThemes,
         { zeroSwapEnabled },
-        pokerOptions
+        pokerOptions,
+        stopOptions
       );
       saveSession(state.playerId, name.trim(), state.code);
       setConfigGame(null);
@@ -335,12 +343,18 @@ export default function Home() {
               </div>
             )}
 
-            {configGame === "entre-extremos" && cardSource === "deck" && (
+            {(configGame === "entre-extremos" && cardSource === "deck") || configGame === "stop" ? (
               <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-300">Grupos de cartas</p>
-                    <p className="text-xs text-slate-500">Escolha pelo menos um tema para a partida.</p>
+                    <p className="text-sm font-medium text-slate-300">
+                      {configGame === "stop" ? "Temas das categorias" : "Grupos de cartas"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {configGame === "stop"
+                        ? "Escolha pelo menos 9 temas. A cada rodada, 9 serão sorteados."
+                        : "Escolha pelo menos um tema para a partida."}
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -367,6 +381,77 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+            ) : null}
+
+            {configGame === "stop" && (
+              <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                <p className="mb-3 text-sm font-medium text-slate-300">Opções do Stop</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm text-slate-400">
+                    Rodadas
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={stopOptions.roundCount}
+                      onChange={(event) =>
+                        setStopOptions((current) => ({
+                          ...current,
+                          roundCount: Number(event.target.value),
+                        }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-400">
+                    Tempo para preencher (s)
+                    <input
+                      type="number"
+                      min={30}
+                      max={300}
+                      value={stopOptions.fillTimeMs / 1000}
+                      onChange={(event) =>
+                        setStopOptions((current) => ({
+                          ...current,
+                          fillTimeMs: Number(event.target.value) * 1000,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-400">
+                    Tempo de validação (s)
+                    <input
+                      type="number"
+                      min={30}
+                      max={180}
+                      value={stopOptions.validationTimeMs / 1000}
+                      onChange={(event) =>
+                        setStopOptions((current) => ({
+                          ...current,
+                          validationTimeMs: Number(event.target.value) * 1000,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-400">
+                    Pontos por resposta válida
+                    <input
+                      type="number"
+                      min={1}
+                      value={stopOptions.validAnswerPoints}
+                      onChange={(event) =>
+                        setStopOptions((current) => ({
+                          ...current,
+                          validAnswerPoints: Number(event.target.value),
+                        }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                    />
+                  </label>
+                </div>
+              </div>
             )}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -385,6 +470,7 @@ export default function Home() {
                   !connected ||
                   !name.trim() ||
                   (selectedGame === "entre-extremos" && cardSource === "deck" && cardThemes.length === 0) ||
+                  (selectedGame === "stop" && cardThemes.length < 9) ||
                   (selectedGame === "texas-holdem" &&
                     (pokerOptions.startingChips < 200 ||
                       pokerOptions.smallBlind < 1 ||
@@ -415,6 +501,7 @@ export default function Home() {
           <li>Entre Extremos: pistas e palpites em uma escala secreta.</li>
           <li>Entre Quatro Cores: cartas, blefes, 1!, compras e troca de mãos opcional.</li>
           <li>Poker Texas Hold'em: apostas com fichas virtuais e cartas comunitárias.</li>
+          <li>Stop: letra sorteada, 9 categorias e validação pela maioria.</li>
         </ul>
       </section>
     </div>

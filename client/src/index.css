@@ -255,6 +255,36 @@ body {
   animation: poker-table-reveal 0.6s ease-out;
 }
 
+@keyframes stop-letter-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 24px rgba(251, 191, 36, 0.45);
+  }
+}
+
+@keyframes stop-call-flash {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.stop-letter-pulse {
+  animation: stop-letter-pulse 1.4s ease-in-out infinite;
+}
+
+.stop-call-flash:not(:disabled) {
+  animation: stop-call-flash 1.2s ease-in-out infinite;
+}
+
 .four-colors-main {
   display: flex;
   flex-direction: column;

@@ -2,7 +2,7 @@ export type GameMode = "couple" | "teams";
 
 export type CardSource = "deck" | "free";
 
-export type SelectedGame = "entre-extremos" | "quatro-cores" | "texas-holdem";
+export type SelectedGame = "entre-extremos" | "quatro-cores" | "texas-holdem" | "stop";
 
 export const GAME_OPTIONS = [
   {
@@ -19,6 +19,11 @@ export const GAME_OPTIONS = [
     id: "texas-holdem",
     label: "Poker Texas Hold'em",
     description: "Blefes, apostas e cartas comunitárias com fichas virtuais.",
+  },
+  {
+    id: "stop",
+    label: "Stop",
+    description: "Letra sorteada, 9 categorias e validação pela maioria.",
   },
 ] as const satisfies ReadonlyArray<{
   id: SelectedGame;
@@ -325,12 +330,109 @@ export interface ClientEntreExtremosGameState {
   currentRound?: ClientRoundState;
 }
 
-export type GameState = EntreExtremosGameState | FourColorsGameState | PokerGameState;
+export interface StopOptions {
+  roundCount: number;
+  fillTimeMs: number;
+  validationTimeMs: number;
+  validAnswerPoints: number;
+  uniqueAnswerBonus: number;
+}
+
+export const DEFAULT_STOP_OPTIONS: StopOptions = {
+  roundCount: 5,
+  fillTimeMs: 90000,
+  validationTimeMs: 60000,
+  validAnswerPoints: 10,
+  uniqueAnswerBonus: 5,
+};
+
+export type StopPhase = "filling" | "validation" | "round-ended" | "game-over";
+
+export interface StopCategoryResult {
+  categoryId: CardTheme;
+  answer: string;
+  valid: boolean;
+  unique: boolean;
+  points: number;
+}
+
+export interface StopRoundPlayerResult {
+  playerId: string;
+  totalPoints: number;
+  categories: StopCategoryResult[];
+}
+
+export interface StopVisibleAnswer {
+  playerId: string;
+  name: string;
+  answer: string;
+}
+
+export interface StopValidationItem {
+  categoryId: CardTheme;
+  answerOwnerId: string;
+  answerOwnerName: string;
+  answer: string;
+  validVotes: number;
+  invalidVotes: number;
+  totalVoters: number;
+  majorityValid?: boolean;
+  myVote?: boolean;
+}
+
+export interface StopGameState {
+  kind: "stop";
+  roundNumber: number;
+  totalRounds: number;
+  letter: string;
+  categories: CardTheme[];
+  phase: StopPhase;
+  answers: Record<string, Record<string, string>>;
+  lockedPlayers: string[];
+  stoppedByPlayerId?: string;
+  votes: Record<string, Record<string, Record<string, boolean>>>;
+  roundResults?: StopRoundPlayerResult[];
+  lastAction?: string;
+  winnerIds?: string[];
+  isGameOver?: boolean;
+  turnDeadlineAt?: number;
+  usedLetters: string[];
+}
+
+export interface ClientStopGameState {
+  kind: "stop";
+  roundNumber: number;
+  totalRounds: number;
+  letter: string;
+  categories: CardTheme[];
+  categoryLabels: Record<CardTheme, string>;
+  phase: StopPhase;
+  myAnswers: Record<string, string>;
+  allAnswers: Record<string, Record<string, string>>;
+  playerNames: Record<string, string>;
+  lockedPlayers: string[];
+  stoppedByPlayerId?: string;
+  stoppedByName?: string;
+  validationItems: StopValidationItem[];
+  roundResults?: StopRoundPlayerResult[];
+  lastAction?: string;
+  winnerIds?: string[];
+  isGameOver?: boolean;
+  turnDeadlineAt?: number;
+  canSubmit: boolean;
+  canStop: boolean;
+  filledCount: number;
+  pendingVotes: number;
+  totalVotesRequired: number;
+}
+
+export type GameState = EntreExtremosGameState | FourColorsGameState | PokerGameState | StopGameState;
 
 export type ClientGameState =
   | ClientEntreExtremosGameState
   | ClientFourColorsGameState
-  | ClientPokerGameState;
+  | ClientPokerGameState
+  | ClientStopGameState;
 
 export interface RoomState {
   code: string;
@@ -344,6 +446,7 @@ export interface RoomState {
   cardThemes: CardTheme[];
   fourColorsOptions: FourColorsOptions;
   pokerOptions: PokerOptions;
+  stopOptions: StopOptions;
   messages: ChatMessage[];
   currentRound?: RoundState;
   gameState?: GameState;

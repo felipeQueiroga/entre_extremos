@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import EntreExtremosGame from "../components/entre-extremos/EntreExtremosGame";
 import FourColorsGame from "../components/four-colors/FourColorsGame";
 import PokerGame from "../components/poker/PokerGame";
+import StopGame from "../components/stop/StopGame";
 import RoomChat from "../components/RoomChat";
 import ScoreBoard from "../components/ScoreBoard";
 import { useGame } from "../hooks/GameContext";
@@ -48,23 +49,25 @@ export default function Game() {
 
   const isFourColors = state.selectedGame === "quatro-cores";
   const isPoker = state.selectedGame === "texas-holdem";
+  const isStop = state.selectedGame === "stop";
+  const compactLayout = isFourColors || isPoker || isStop;
 
   return (
     <div
       className={
-        isFourColors || isPoker
+        compactLayout
           ? "four-colors-room mx-auto min-h-dvh max-w-6xl px-2 py-2 sm:px-4 sm:py-4 lg:min-h-screen lg:py-8"
           : "mx-auto min-h-screen max-w-6xl px-3 py-5 sm:px-4 sm:py-8"
       }
     >
       <div
         className={
-          isFourColors || isPoker
+          compactLayout
             ? "four-colors-room-grid grid gap-2 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6"
             : "grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6"
         }
       >
-        <div className={isFourColors || isPoker ? "four-colors-main min-h-0 min-w-0" : "min-w-0"}>
+        <div className={compactLayout ? "four-colors-main min-h-0 min-w-0" : "min-w-0"}>
           {error && (
             <p className="mb-4 rounded-lg bg-rose-900/40 px-4 py-2 text-center text-rose-200">
               {error}
@@ -74,7 +77,7 @@ export default function Game() {
             </p>
           )}
 
-          {!isPoker && (
+          {!isPoker && !isStop && (
             <section className="four-colors-score mb-5 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 sm:p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
@@ -86,7 +89,9 @@ export default function Game() {
             </section>
           )}
 
-          {isPoker ? (
+          {isStop ? (
+            <StopGame state={state} />
+          ) : isPoker ? (
             <PokerGame state={state} />
           ) : isFourColors ? (
             <FourColorsGame state={state} />

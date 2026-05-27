@@ -37,6 +37,9 @@ import {
   type RoomJoinPayload,
   type RoomReconnectPayload,
   type SelectedGame,
+  type StopOptions,
+  type StopSubmitAnswersPayload,
+  type StopVotePayload,
 } from "@entre-extremos/shared";
 import { clearSession, getStoredPlayerId, getStoredPlayerName, getStoredRoomCode, saveSession } from "../utils/session";
 import { getSocketUrl, isNgrokHost } from "../utils/socketUrl";
@@ -82,7 +85,8 @@ interface GameContextValue {
     cardSource?: CardSource,
     cardThemes?: CardTheme[],
     fourColorsOptions?: FourColorsOptions,
-    pokerOptions?: PokerOptions
+    pokerOptions?: PokerOptions,
+    stopOptions?: StopOptions
   ) => Promise<ClientRoomState>;
   joinRoom: (code: string, name: string, playerId?: string) => Promise<ClientRoomState>;
   reconnectRoom: (code: string, playerId: string) => Promise<ClientRoomState>;
@@ -116,6 +120,10 @@ interface GameContextValue {
   pokerAllIn: () => void;
   pokerNextHand: () => void;
   pokerRestart: () => void;
+  stopSubmitAnswers: (answers: Record<string, string>) => void;
+  stopCallStop: () => void;
+  stopVote: (categoryId: CardTheme, answerOwnerId: string, valid: boolean) => void;
+  stopNextRound: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -249,12 +257,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cardSource: CardSource = "deck",
       cardThemes?: CardTheme[],
       fourColorsOptions?: FourColorsOptions,
-      pokerOptions?: PokerOptions
+      pokerOptions?: PokerOptions,
+      stopOptions?: StopOptions
     ) => {
       const response = await emitWithAck<RoomCreatePayload, ClientRoomState | null>(
         getSocket(),
         CLIENT_EVENTS.ROOM_CREATE,
-        { name, selectedGame, mode, cardSource, cardThemes, fourColorsOptions, pokerOptions }
+        { name, selectedGame, mode, cardSource, cardThemes, fourColorsOptions, pokerOptions, stopOptions }
       );
       if (!response) throw new Error("Não foi possível criar a sala.");
       setState(response);
@@ -497,6 +506,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinners([]);
   }, [getSocket]);
 
+  const stopSubmitAnswers = useCallback(
+    (answers: Record<string, string>) => {
+      getSocket().emit(CLIENT_EVENTS.STOP_SUBMIT_ANSWERS, {
+        answers,
+      } satisfies StopSubmitAnswersPayload);
+    },
+    [getSocket]
+  );
+
+  const stopCallStop = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.STOP_CALL_STOP);
+  }, [getSocket]);
+
+  const stopVote = useCallback(
+    (categoryId: CardTheme, answerOwnerId: string, valid: boolean) => {
+      getSocket().emit(CLIENT_EVENTS.STOP_VOTE, {
+        categoryId,
+        answerOwnerId,
+        valid,
+      } satisfies StopVotePayload);
+    },
+    [getSocket]
+  );
+
+  const stopNextRound = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.STOP_NEXT_ROUND);
+  }, [getSocket]);
+
   const value: GameContextValue = {
     socket: socketReady ? socketRef.current : null,
     connected,
@@ -539,6 +576,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     pokerAllIn,
     pokerNextHand,
     pokerRestart,
+    stopSubmitAnswers,
+    stopCallStop,
+    stopVote,
+    stopNextRound,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
