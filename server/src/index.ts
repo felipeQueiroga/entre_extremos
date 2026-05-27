@@ -22,6 +22,8 @@ import {
   type FourColorsChooseColorPayload,
   type FourColorsChooseHandSwapTargetPayload,
   type FourColorsPlayCardPayload,
+  type PokerBetPayload,
+  type PokerRaisePayload,
   type RoomCreatePayload,
   type RoomJoinPayload,
   type RoomReconnectPayload,
@@ -128,7 +130,8 @@ io.on("connection", (socket) => {
       mode,
       cardSource,
       cardThemes,
-      payload.fourColorsOptions
+      payload.fourColorsOptions,
+      payload.pokerOptions
     );
     roomManager.bindSocket(socket.id, player.id);
     socket.join(room.code);
@@ -446,6 +449,116 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_START, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+
+    const result = roomManager.startGame(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_FOLD, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.foldPoker(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_CHECK, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.checkPoker(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_CALL, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.callPoker(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_BET, (payload: PokerBetPayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.betPoker(playerId, payload.amount);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_RAISE, (payload: PokerRaisePayload) => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.raisePoker(playerId, payload.amount);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_ALL_IN, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.allInPoker(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_NEXT_HAND, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.nextPokerHand(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
+    const room = roomManager.getRoomByPlayer(playerId);
+    if (room) broadcastRoomState(room.code);
+  });
+
+  socket.on(CLIENT_EVENTS.POKER_RESTART, () => {
+    const playerId = roomManager.getPlayerIdBySocket(socket.id);
+    if (!playerId) return;
+    const result = roomManager.restartGame(playerId);
+    if (result.error) {
+      emitError(socket.id, result.error);
+      return;
+    }
     const room = roomManager.getRoomByPlayer(playerId);
     if (room) broadcastRoomState(room.code);
   });

@@ -28,9 +28,9 @@ function cardName(card: FourColorsCard): string {
   if (card.type === "number") return String(card.value);
   if (card.type === "skip") return "Pular";
   if (card.type === "reverse") return "Inverter";
-  if (card.type === "draw2") return "Comprar 2";
+  if (card.type === "draw2") return "Comprar";
   if (card.type === "wild") return "Coringa";
-  return "Comprar 4";
+  return "Comprar";
 }
 
 const SIZE_CLASSES = {
@@ -79,13 +79,13 @@ export default function Card({
         disabled && onClick ? "cursor-not-allowed" : "hover:translate-y-[-6px]"
       }`}
     >
-      <span className="absolute left-2 top-2 text-xs uppercase tracking-wide opacity-80">
+      <span className="absolute left-1.5 right-1.5 top-1.5 truncate text-[0.5rem] uppercase leading-none tracking-normal opacity-80 sm:left-2 sm:right-2 sm:top-2 sm:text-[0.6rem] sm:tracking-wide lg:text-xs">
         {cardName(card)}
       </span>
       <span className="absolute inset-x-3 top-1/2 flex aspect-[1.15] -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-center text-slate-950 shadow-inner">
         {cardLabel(card)}
       </span>
-      <span className="absolute bottom-2 right-2 rotate-180 text-xs uppercase tracking-wide opacity-80">
+      <span className="absolute bottom-1.5 left-1.5 right-1.5 rotate-180 truncate text-[0.5rem] uppercase leading-none tracking-normal opacity-80 sm:bottom-2 sm:left-2 sm:right-2 sm:text-[0.6rem] sm:tracking-wide lg:text-xs">
         {cardName(card)}
       </span>
     </button>

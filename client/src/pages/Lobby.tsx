@@ -15,6 +15,7 @@ import {
 const GAME_IMAGES = {
   "entre-extremos": "/images/ponteiro.png",
   "quatro-cores": "/images/entre_quatro_cores.png",
+  "texas-holdem": "/images/poker.png",
 } as const;
 
 export default function Lobby() {
@@ -59,7 +60,7 @@ export default function Lobby() {
   const selectedGameLabel =
     GAME_OPTIONS.find((game) => game.id === state.selectedGame)?.label ?? "Entre Extremos";
   const canStart =
-    state.selectedGame === "quatro-cores"
+    state.selectedGame === "quatro-cores" || state.selectedGame === "texas-holdem"
       ? connectedCount >= 2
       : state.mode === "couple"
         ? connectedCount >= 2
@@ -105,6 +106,12 @@ export default function Lobby() {
             {state.selectedGame === "entre-extremos" && state.cardSource === "deck" && (
               <p className="mt-1 text-sm text-slate-500">
                 Grupos: {themeLabels || "Relacionamento, Pets, Signos, Viagem, Primeiro encontro"}
+              </p>
+            )}
+            {state.selectedGame === "texas-holdem" && (
+              <p className="mt-1 text-sm text-slate-500">
+                Fichas: {state.pokerOptions.startingChips} · Blinds: {state.pokerOptions.smallBlind}/
+                {state.pokerOptions.bigBlind}
               </p>
             )}
           </header>

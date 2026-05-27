@@ -7,6 +7,7 @@ import type {
   Direction,
   FourColorsOptions,
   GameMode,
+  PokerOptions,
   SelectedGame,
 } from "./types";
 
@@ -42,6 +43,15 @@ export const CLIENT_EVENTS = {
   FOUR_COLORS_PASS_TURN: "fourColors:passTurn",
   FOUR_COLORS_CHOOSE_HAND_SWAP_TARGET: "fourColors:chooseHandSwapTarget",
   FOUR_COLORS_RESTART: "fourColors:restart",
+  POKER_START: "poker:start",
+  POKER_FOLD: "poker:fold",
+  POKER_CHECK: "poker:check",
+  POKER_CALL: "poker:call",
+  POKER_BET: "poker:bet",
+  POKER_RAISE: "poker:raise",
+  POKER_ALL_IN: "poker:allIn",
+  POKER_NEXT_HAND: "poker:nextHand",
+  POKER_RESTART: "poker:restart",
 } as const;
 
 export interface RoomCreatePayload {
@@ -51,6 +61,7 @@ export interface RoomCreatePayload {
   cardSource?: CardSource;
   cardThemes?: CardTheme[];
   fourColorsOptions?: FourColorsOptions;
+  pokerOptions?: PokerOptions;
 }
 
 export interface RoomJoinPayload {
@@ -103,6 +114,14 @@ export interface FourColorsChallengeOnePayload {
 
 export interface FourColorsChooseHandSwapTargetPayload {
   targetPlayerId?: string;
+}
+
+export interface PokerBetPayload {
+  amount: number;
+}
+
+export interface PokerRaisePayload {
+  amount: number;
 }
 
 export interface RoomErrorPayload {

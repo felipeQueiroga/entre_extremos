@@ -22,6 +22,9 @@ import {
   type OpponentSubmitDirectionPayload,
   type PlayerJoinTeamPayload,
   type PlayerSubmitGuessPayload,
+  type PokerBetPayload,
+  type PokerOptions,
+  type PokerRaisePayload,
   type PsychicSubmitCluePayload,
   type PsychicSubmitThemePayload,
   type FourColorsChallengeOnePayload,
@@ -51,7 +54,8 @@ interface GameContextValue {
     mode?: GameMode,
     cardSource?: CardSource,
     cardThemes?: CardTheme[],
-    fourColorsOptions?: FourColorsOptions
+    fourColorsOptions?: FourColorsOptions,
+    pokerOptions?: PokerOptions
   ) => Promise<ClientRoomState>;
   joinRoom: (code: string, name: string, playerId?: string) => Promise<ClientRoomState>;
   leaveRoom: () => void;
@@ -73,6 +77,15 @@ interface GameContextValue {
   fourColorsPassTurn: () => void;
   fourColorsChooseHandSwapTarget: (targetPlayerId?: string) => void;
   fourColorsRestart: () => void;
+  pokerStart: () => void;
+  pokerFold: () => void;
+  pokerCheck: () => void;
+  pokerCall: () => void;
+  pokerBet: (amount: number) => void;
+  pokerRaise: (amount: number) => void;
+  pokerAllIn: () => void;
+  pokerNextHand: () => void;
+  pokerRestart: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -191,12 +204,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       mode: GameMode = "couple",
       cardSource: CardSource = "deck",
       cardThemes?: CardTheme[],
-      fourColorsOptions?: FourColorsOptions
+      fourColorsOptions?: FourColorsOptions,
+      pokerOptions?: PokerOptions
     ) => {
       const response = await emitWithAck<RoomCreatePayload, ClientRoomState | null>(
         getSocket(),
         CLIENT_EVENTS.ROOM_CREATE,
-        { name, selectedGame, mode, cardSource, cardThemes, fourColorsOptions }
+        { name, selectedGame, mode, cardSource, cardThemes, fourColorsOptions, pokerOptions }
       );
       if (!response) throw new Error("Não foi possível criar a sala.");
       setState(response);
@@ -342,6 +356,49 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setWinners([]);
   }, [getSocket]);
 
+  const pokerStart = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_START);
+  }, [getSocket]);
+
+  const pokerFold = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_FOLD);
+  }, [getSocket]);
+
+  const pokerCheck = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_CHECK);
+  }, [getSocket]);
+
+  const pokerCall = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_CALL);
+  }, [getSocket]);
+
+  const pokerBet = useCallback(
+    (amount: number) => {
+      getSocket().emit(CLIENT_EVENTS.POKER_BET, { amount } satisfies PokerBetPayload);
+    },
+    [getSocket]
+  );
+
+  const pokerRaise = useCallback(
+    (amount: number) => {
+      getSocket().emit(CLIENT_EVENTS.POKER_RAISE, { amount } satisfies PokerRaisePayload);
+    },
+    [getSocket]
+  );
+
+  const pokerAllIn = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_ALL_IN);
+  }, [getSocket]);
+
+  const pokerNextHand = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_NEXT_HAND);
+  }, [getSocket]);
+
+  const pokerRestart = useCallback(() => {
+    getSocket().emit(CLIENT_EVENTS.POKER_RESTART);
+    setWinners([]);
+  }, [getSocket]);
+
   const value: GameContextValue = {
     socket: socketReady ? socketRef.current : null,
     connected,
@@ -372,6 +429,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     fourColorsPassTurn,
     fourColorsChooseHandSwapTarget,
     fourColorsRestart,
+    pokerStart,
+    pokerFold,
+    pokerCheck,
+    pokerCall,
+    pokerBet,
+    pokerRaise,
+    pokerAllIn,
+    pokerNextHand,
+    pokerRestart,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

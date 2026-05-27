@@ -8,6 +8,7 @@ import type {
   ClientRoundState,
   FourColorsOptions,
   GameMode,
+  PokerOptions,
   Player,
   RoomState,
   RoundState,
@@ -30,6 +31,18 @@ import {
   toClientFourColorsState,
 } from "./fourColors";
 import {
+  allInPoker,
+  betPoker,
+  callPoker,
+  checkPoker,
+  DEFAULT_POKER_OPTIONS,
+  foldPoker,
+  nextPokerHand,
+  raisePoker,
+  startPokerGame,
+  toClientPokerState,
+} from "./poker";
+import {
   calculateRoundResult,
   getTeamWinners,
   getWinners,
@@ -38,6 +51,7 @@ import {
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_COUPLE_PLAYERS = 2;
 const MAX_TEAM_PLAYERS = 8;
+const MAX_POKER_PLAYERS = 8;
 const MAX_CHAT_MESSAGES = 50;
 const SUSPENSE_MS = 3000;
 const CHAT_COOLDOWN_MS = 1000;
@@ -76,7 +90,8 @@ export class RoomManager {
     mode: GameMode = "couple",
     cardSource: CardSource = "deck",
     cardThemes?: CardTheme[],
-    fourColorsOptions: FourColorsOptions = { zeroSwapEnabled: false }
+    fourColorsOptions: FourColorsOptions = { zeroSwapEnabled: false },
+    pokerOptions: PokerOptions = DEFAULT_POKER_OPTIONS
   ): { room: RoomState; player: Player } {
     const code = this.generateCode();
     const player: Player = {
@@ -97,6 +112,7 @@ export class RoomManager {
       cardSource,
       cardThemes: normalizeCardThemes(cardThemes),
       fourColorsOptions,
+      pokerOptions,
       messages: [],
       winningScore: 10,
       usedCardIds: [],
@@ -122,7 +138,9 @@ export class RoomManager {
     }
 
     const maxPlayers =
-      room.selectedGame === "quatro-cores"
+      room.selectedGame === "texas-holdem"
+        ? MAX_POKER_PLAYERS
+        : room.selectedGame === "quatro-cores"
         ? MAX_TEAM_PLAYERS
         : room.mode === "couple"
           ? MAX_COUPLE_PLAYERS
@@ -237,7 +255,7 @@ export class RoomManager {
     if (!host?.isHost) return { error: "Apenas o host pode iniciar." };
 
     const connected = room.players.filter((p) => p.connected);
-    if (room.selectedGame === "quatro-cores") {
+    if (room.selectedGame === "quatro-cores" || room.selectedGame === "texas-holdem") {
       if (connected.length < 2) {
         return { error: "São necessários pelo menos 2 jogadores." };
       }
@@ -266,6 +284,10 @@ export class RoomManager {
       const result = startFourColorsGame(room);
       if (!result.error) this.scheduleFourColorsTurnTimer(room);
       return result;
+    }
+
+    if (room.selectedGame === "texas-holdem") {
+      return startPokerGame(room);
     }
 
     this.startRound(room);
@@ -702,10 +724,13 @@ export class RoomManager {
       cardSource: room.cardSource,
       cardThemes: room.cardThemes,
       fourColorsOptions: room.fourColorsOptions,
+      pokerOptions: room.pokerOptions,
       messages: room.messages,
       currentRound: clientRound,
       gameState:
-        room.selectedGame === "quatro-cores"
+        room.selectedGame === "texas-holdem"
+          ? toClientPokerState(room, playerId)
+          : room.selectedGame === "quatro-cores"
           ? toClientFourColorsState(room, playerId)
           : { kind: "entre-extremos", currentRound: clientRound },
       winningScore: room.winningScore,
@@ -770,6 +795,50 @@ export class RoomManager {
     const result = chooseHandSwapTarget(room, playerId, targetPlayerId);
     if (!result.error) this.scheduleFourColorsTurnTimer(room);
     return result;
+  }
+
+  foldPoker(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    return foldPoker(room, playerId);
+  }
+
+  checkPoker(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    return checkPoker(room, playerId);
+  }
+
+  callPoker(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    return callPoker(room, playerId);
+  }
+
+  betPoker(playerId: string, amount: number): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    return betPoker(room, playerId, amount);
+  }
+
+  raisePoker(playerId: string, amount: number): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    return raisePoker(room, playerId, amount);
+  }
+
+  allInPoker(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    return allInPoker(room, playerId);
+  }
+
+  nextPokerHand(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    const host = room.players.find((player) => player.id === playerId);
+    if (!host?.isHost) return { error: "Apenas o host pode avançar a mão." };
+    return nextPokerHand(room);
   }
 }
 

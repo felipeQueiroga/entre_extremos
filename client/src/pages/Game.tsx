@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import EntreExtremosGame from "../components/entre-extremos/EntreExtremosGame";
 import FourColorsGame from "../components/four-colors/FourColorsGame";
+import PokerGame from "../components/poker/PokerGame";
 import RoomChat from "../components/RoomChat";
 import ScoreBoard from "../components/ScoreBoard";
 import { useGame } from "../hooks/GameContext";
@@ -53,23 +54,24 @@ export default function Game() {
   }
 
   const isFourColors = state.selectedGame === "quatro-cores";
+  const isPoker = state.selectedGame === "texas-holdem";
 
   return (
     <div
       className={
-        isFourColors
+        isFourColors || isPoker
           ? "four-colors-room mx-auto min-h-dvh max-w-6xl px-2 py-2 sm:px-4 sm:py-4 lg:min-h-screen lg:py-8"
           : "mx-auto min-h-screen max-w-6xl px-3 py-5 sm:px-4 sm:py-8"
       }
     >
       <div
         className={
-          isFourColors
+          isFourColors || isPoker
             ? "four-colors-room-grid grid gap-2 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6"
             : "grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6"
         }
       >
-        <div className={isFourColors ? "four-colors-main min-h-0 min-w-0" : "min-w-0"}>
+        <div className={isFourColors || isPoker ? "four-colors-main min-h-0 min-w-0" : "min-w-0"}>
           {error && (
             <p className="mb-4 rounded-lg bg-rose-900/40 px-4 py-2 text-center text-rose-200">
               {error}
@@ -89,7 +91,9 @@ export default function Game() {
             <ScoreBoard state={state} />
           </section>
 
-          {isFourColors ? (
+          {isPoker ? (
+            <PokerGame state={state} />
+          ) : isFourColors ? (
             <FourColorsGame state={state} />
           ) : (
             <EntreExtremosGame

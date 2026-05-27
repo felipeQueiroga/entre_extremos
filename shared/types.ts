@@ -2,7 +2,7 @@ export type GameMode = "couple" | "teams";
 
 export type CardSource = "deck" | "free";
 
-export type SelectedGame = "entre-extremos" | "quatro-cores";
+export type SelectedGame = "entre-extremos" | "quatro-cores" | "texas-holdem";
 
 export const GAME_OPTIONS = [
   {
@@ -14,6 +14,11 @@ export const GAME_OPTIONS = [
     id: "quatro-cores",
     label: "Entre Quatro Cores",
     description: "Cartas de cores, números, ações e curingas.",
+  },
+  {
+    id: "texas-holdem",
+    label: "Poker Texas Hold'em",
+    description: "Blefes, apostas e cartas comunitárias com fichas virtuais.",
   },
 ] as const satisfies ReadonlyArray<{
   id: SelectedGame;
@@ -165,6 +170,118 @@ export interface FourColorsGameState {
   lastAction?: string;
 }
 
+export type PokerSuit = "clubs" | "diamonds" | "hearts" | "spades";
+
+export type PokerRank =
+  | "2"
+  | "3"
+  | "4"
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "J"
+  | "Q"
+  | "K"
+  | "A";
+
+export interface PokerCard {
+  id: string;
+  suit: PokerSuit;
+  rank: PokerRank;
+}
+
+export type PokerPhase =
+  | "waiting"
+  | "preflop"
+  | "flop"
+  | "turn"
+  | "river"
+  | "showdown"
+  | "hand-ended";
+
+export type PokerPlayerStatus = "active" | "folded" | "all-in" | "out";
+
+export interface PokerOptions {
+  startingChips: number;
+  smallBlind: number;
+  bigBlind: number;
+}
+
+export interface PokerPlayerState {
+  playerId: string;
+  chips: number;
+  hand: PokerCard[];
+  currentBet: number;
+  totalCommitted: number;
+  status: PokerPlayerStatus;
+  hasActed: boolean;
+}
+
+export interface PokerVisiblePlayer {
+  playerId: string;
+  name: string;
+  connected: boolean;
+  chips: number;
+  currentBet: number;
+  totalCommitted: number;
+  status: PokerPlayerStatus;
+  hasActed: boolean;
+  cards?: PokerCard[];
+}
+
+export interface PokerHandResult {
+  playerId: string;
+  label: string;
+  cards: PokerCard[];
+}
+
+export interface PokerGameState {
+  kind: "poker";
+  handNumber: number;
+  dealerIndex: number;
+  playerOrder: string[];
+  players: PokerPlayerState[];
+  deck: PokerCard[];
+  communityCards: PokerCard[];
+  pot: number;
+  currentBet: number;
+  minRaise: number;
+  currentPlayerId?: string;
+  phase: PokerPhase;
+  winners?: string[];
+  handResults?: PokerHandResult[];
+  lastAction?: string;
+}
+
+export interface ClientPokerGameState {
+  kind: "poker";
+  handNumber: number;
+  dealerIndex: number;
+  playerOrder: string[];
+  players: PokerVisiblePlayer[];
+  hand: PokerCard[];
+  communityCards: PokerCard[];
+  pot: number;
+  currentBet: number;
+  minRaise: number;
+  currentPlayerId?: string;
+  phase: PokerPhase;
+  winners?: string[];
+  handResults?: PokerHandResult[];
+  lastAction?: string;
+  callAmount: number;
+  minBet: number;
+  canCheck: boolean;
+  canCall: boolean;
+  canBet: boolean;
+  canRaise: boolean;
+  canFold: boolean;
+  canAllIn: boolean;
+}
+
 export interface ClientFourColorsGameState {
   kind: "four-colors";
   playerOrder: string[];
@@ -200,9 +317,12 @@ export interface ClientEntreExtremosGameState {
   currentRound?: ClientRoundState;
 }
 
-export type GameState = EntreExtremosGameState | FourColorsGameState;
+export type GameState = EntreExtremosGameState | FourColorsGameState | PokerGameState;
 
-export type ClientGameState = ClientEntreExtremosGameState | ClientFourColorsGameState;
+export type ClientGameState =
+  | ClientEntreExtremosGameState
+  | ClientFourColorsGameState
+  | ClientPokerGameState;
 
 export interface RoomState {
   code: string;
@@ -215,6 +335,7 @@ export interface RoomState {
   cardSource: CardSource;
   cardThemes: CardTheme[];
   fourColorsOptions: FourColorsOptions;
+  pokerOptions: PokerOptions;
   messages: ChatMessage[];
   currentRound?: RoundState;
   gameState?: GameState;
