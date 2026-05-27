@@ -1,16 +1,19 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ClientRoomState } from "@entre-extremos/shared";
 import { useGame } from "../../hooks/GameContext";
 import { isHost } from "../../hooks/useGameHelpers";
 import PokerActions from "./PokerActions";
-import PokerCard from "./PokerCard";
 import PokerHandSummary from "./PokerHandSummary";
 import PokerTable from "./PokerTable";
+import { isPokerTimerActive, POKER_TURN_SECONDS } from "./usePokerTableEffects";
 
 interface PokerGameProps {
   state: ClientRoomState;
 }
 
 export default function PokerGame({ state }: PokerGameProps) {
+  const navigate = useNavigate();
   const {
     pokerFold,
     pokerCheck,
@@ -19,31 +22,42 @@ export default function PokerGame({ state }: PokerGameProps) {
     pokerRaise,
     pokerAllIn,
     pokerNextHand,
-    pokerRestart,
+    restartGame,
   } = useGame();
+
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const game = state.gameState?.kind === "poker" ? state.gameState : undefined;
 
   if (!game) {
+    const inLobby = state.status === "lobby";
     return (
       <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 text-center">
         <p className="text-sm uppercase tracking-[0.25em] text-emerald-300">Poker Texas Hold'em</p>
-        <h2 className="mt-2 text-3xl font-black">Mesa pronta para receber as cartas</h2>
+        <h2 className="mt-2 text-3xl font-black">
+          {inLobby ? "Aguardando no lobby" : "Preparando a mesa"}
+        </h2>
         <p className="mx-auto mt-3 max-w-2xl text-slate-400">
-          O host inicia a partida no lobby. Cada jogador recebe fichas virtuais e duas cartas
-          privadas; as cartas comunitárias aparecem no centro da mesa.
+          {inLobby
+            ? "O host voltou ao lobby. Aguarde ele iniciar uma nova partida."
+            : "Distribuindo fichas e cartas. A mesa deve aparecer em instantes."}
         </p>
       </section>
     );
   }
 
   const currentName = game.players.find((player) => player.playerId === game.currentPlayerId)?.name;
-  const localPlayer = game.players.find((player) => player.playerId === state.playerId);
-  const winningCardIds = new Set(
-    (game.handResults ?? [])
-      .filter((result) => game.winners?.includes(result.playerId))
-      .flatMap((result) => result.cards.map((card) => card.id))
-  );
+  const showTimer = isPokerTimerActive(game);
+  const secondsLeft = showTimer && game.turnDeadlineAt
+    ? Math.max(0, Math.ceil((game.turnDeadlineAt - now) / 1000))
+    : undefined;
+  const timerIsUrgent = secondsLeft !== undefined && secondsLeft <= 5;
+  const isLocalTurn = game.currentPlayerId === state.playerId;
 
   return (
     <div className="space-y-2">
@@ -55,12 +69,49 @@ export default function PokerGame({ state }: PokerGameProps) {
             </p>
             <h2 className="text-xl font-black sm:text-2xl">Poker Texas Hold'em</h2>
           </div>
-          <div className="text-right text-xs text-slate-300 sm:text-sm">
+          <div className="min-w-[10rem] text-right text-xs text-slate-300 sm:text-sm">
             <p>Jogador da vez: {currentName ?? "aguardando"}</p>
             <p>
               Blinds {state.pokerOptions.smallBlind}/{state.pokerOptions.bigBlind}
             </p>
+            {secondsLeft !== undefined && (
+              <div className="mt-2 text-left sm:text-right">
+                <p className={`font-black ${timerIsUrgent ? "text-rose-300" : "text-emerald-300"}`}>
+                  {secondsLeft}s para agir
+                </p>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      timerIsUrgent ? "bg-rose-400" : "bg-emerald-400"
+                    }`}
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (secondsLeft / POKER_TURN_SECONDS) * 100))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+            Placar
+          </span>
+          {state.players.map((player) => (
+            <span
+              key={player.id}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                player.id === state.playerId
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-800 text-slate-200"
+              }`}
+            >
+              {player.name}: {state.score[player.id] ?? 0}
+            </span>
+          ))}
         </div>
       </section>
 
@@ -68,39 +119,30 @@ export default function PokerGame({ state }: PokerGameProps) {
         <PokerTable game={game} localPlayerId={state.playerId} />
 
         <div className="space-y-2">
-          <section className="rounded-xl border border-slate-800 bg-slate-900/90 p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold">Sua mão</p>
-                <p className="text-xs text-slate-400">
-                  Fichas: {localPlayer?.chips ?? 0} · Aposta: {localPlayer?.currentBet ?? 0}
-                </p>
-              </div>
-              {game.phase === "hand-ended" && isHost(state) && (
-                <button
-                  type="button"
-                  onClick={pokerNextHand}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold hover:bg-emerald-500"
-                >
-                  Próxima
-                </button>
-              )}
-            </div>
-            <div className="flex justify-center -space-x-4">
-              {(game.hand.length ? game.hand : [undefined, undefined]).slice(0, 2).map((card, index) => (
-                <PokerCard
-                  key={card?.id ?? index}
-                  card={card}
-                  hidden={!card}
-                  highlighted={!!card && winningCardIds.has(card.id)}
-                />
-              ))}
-            </div>
-          </section>
+          {game.isGameOver && (
+            <section className="rounded-xl border border-amber-400/40 bg-amber-950/50 p-3 text-sm text-amber-50">
+              <p className="font-black uppercase tracking-[0.15em]">Mesa encerrada</p>
+              <p className="mt-1 text-xs text-amber-100">
+                Um jogador ficou sem fichas. O ponto já foi marcado no placar.
+              </p>
+            </section>
+          )}
+
+          {game.phase === "hand-ended" && !game.isGameOver && isHost(state) && (
+            <button
+              type="button"
+              onClick={pokerNextHand}
+              className="w-full rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold hover:bg-emerald-500"
+            >
+              Próxima mão
+            </button>
+          )}
 
           <PokerActions
             game={game}
             localPlayerId={state.playerId}
+            secondsLeft={isLocalTurn ? secondsLeft : undefined}
+            timerIsUrgent={isLocalTurn && timerIsUrgent}
             onFold={pokerFold}
             onCheck={pokerCheck}
             onCall={pokerCall}
@@ -114,10 +156,13 @@ export default function PokerGame({ state }: PokerGameProps) {
           {isHost(state) && (
             <button
               type="button"
-              onClick={pokerRestart}
+              onClick={() => {
+                restartGame();
+                navigate(`/lobby/${state.code}`);
+              }}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-900"
             >
-              Voltar ao lobby / reiniciar mesa
+              Voltar ao lobby
             </button>
           )}
         </div>

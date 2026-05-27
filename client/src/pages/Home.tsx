@@ -90,7 +90,7 @@ export default function Home() {
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-10">
       <header className="mb-10 text-center">
         <p className="text-sm uppercase tracking-[0.3em] text-indigo-400">Jogos online</p>
-        <h1 className="mt-2 text-4xl font-bold sm:text-5xl">Boa Diversão</h1>
+        <h1 className="mt-2 text-4xl font-bold sm:text-5xl">Se divirtam!!!</h1>
         <p className="mt-4 text-lg text-slate-300">
           Reuna seus amigos em uma sala e escolha entre jogos coletivos leves, caóticos e
           divertidos. Cada partida foi feita para render risadas, blefes, palpites improváveis e

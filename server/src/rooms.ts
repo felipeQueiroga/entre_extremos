@@ -38,6 +38,7 @@ import {
   DEFAULT_POKER_OPTIONS,
   foldPoker,
   nextPokerHand,
+  penalizePokerTurnTimeout,
   raisePoker,
   startPokerGame,
   toClientPokerState,
@@ -57,6 +58,7 @@ const SUSPENSE_MS = 3000;
 const CHAT_COOLDOWN_MS = 1000;
 const ONE_CALL_GRACE_MS = 2000;
 const FOUR_COLORS_TURN_MS = 20000;
+const POKER_TURN_MS = 30000;
 
 type BroadcastFn = (roomCode: string) => void;
 
@@ -67,6 +69,7 @@ export class RoomManager {
   private suspenseTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private oneCallTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private fourColorsTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pokerTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private chatCooldown = new Map<string, number>();
   private broadcast: BroadcastFn = () => {};
 
@@ -271,10 +274,12 @@ export class RoomManager {
       }
     }
 
-    room.status = "playing";
     room.usedCardIds = [];
     connected.forEach((p) => {
-      room.score[p.id] = room.selectedGame === "quatro-cores" ? (room.score[p.id] ?? 0) : 0;
+      room.score[p.id] =
+        room.selectedGame === "quatro-cores" || room.selectedGame === "texas-holdem"
+          ? (room.score[p.id] ?? 0)
+          : 0;
     });
     if (room.teamScore) {
       room.teamScore = { A: 0, B: 0 };
@@ -282,14 +287,19 @@ export class RoomManager {
 
     if (room.selectedGame === "quatro-cores") {
       const result = startFourColorsGame(room);
-      if (!result.error) this.scheduleFourColorsTurnTimer(room);
+      if (result.error) return result;
+      this.scheduleFourColorsTurnTimer(room);
       return result;
     }
 
     if (room.selectedGame === "texas-holdem") {
-      return startPokerGame(room);
+      const result = startPokerGame(room);
+      if (result.error) return result;
+      this.schedulePokerTurnTimer(room);
+      return result;
     }
 
+    room.status = "playing";
     this.startRound(room);
     return {};
   }
@@ -549,6 +559,61 @@ export class RoomManager {
     this.fourColorsTurnTimers.set(room.code, timer);
   }
 
+  private clearPokerTurnTimer(roomCode: string): void {
+    const timer = this.pokerTurnTimers.get(roomCode);
+    if (timer) {
+      clearTimeout(timer);
+      this.pokerTurnTimers.delete(roomCode);
+    }
+    const room = this.rooms.get(roomCode);
+    if (room?.gameState?.kind === "poker") {
+      room.gameState.turnDeadlineAt = undefined;
+    }
+  }
+
+  private schedulePokerTurnTimer(room: RoomState): void {
+    this.clearPokerTurnTimer(room.code);
+    if (
+      room.status !== "playing" ||
+      room.selectedGame !== "texas-holdem" ||
+      room.gameState?.kind !== "poker"
+    ) {
+      return;
+    }
+
+    const state = room.gameState;
+    if (
+      state.isGameOver ||
+      state.phase === "hand-ended" ||
+      state.phase === "waiting" ||
+      state.phase === "showdown" ||
+      !state.currentPlayerId
+    ) {
+      state.turnDeadlineAt = undefined;
+      return;
+    }
+
+    const player = state.players.find((p) => p.playerId === state.currentPlayerId);
+    if (!player || player.status !== "active" || player.chips <= 0) {
+      state.turnDeadlineAt = undefined;
+      return;
+    }
+
+    const playerId = state.currentPlayerId;
+    state.turnDeadlineAt = Date.now() + POKER_TURN_MS;
+    const timer = setTimeout(() => {
+      this.pokerTurnTimers.delete(room.code);
+      const currentRoom = this.rooms.get(room.code);
+      if (!currentRoom || currentRoom.status !== "playing") return;
+      if (penalizePokerTurnTimeout(currentRoom, playerId)) {
+        this.schedulePokerTurnTimer(currentRoom);
+        this.broadcast(currentRoom.code);
+      }
+    }, POKER_TURN_MS);
+
+    this.pokerTurnTimers.set(room.code, timer);
+  }
+
   sendChat(playerId: string, text: string): { error?: string; message?: ChatMessage } {
     const room = this.getRoomByPlayer(playerId);
     if (!room) return { error: "Sala não encontrada." };
@@ -650,11 +715,15 @@ export class RoomManager {
     this.clearSuspenseTimer(room.code);
     this.clearOneCallTimersForRoom(room.code);
     this.clearFourColorsTurnTimer(room.code);
+    this.clearPokerTurnTimer(room.code);
     room.status = "lobby";
     room.currentRound = undefined;
     room.usedCardIds = [];
     room.players.filter((p) => p.connected).forEach((p) => {
-      room.score[p.id] = room.selectedGame === "quatro-cores" ? (room.score[p.id] ?? 0) : 0;
+      room.score[p.id] =
+        room.selectedGame === "quatro-cores" || room.selectedGame === "texas-holdem"
+          ? (room.score[p.id] ?? 0)
+          : 0;
     });
     if (room.teamScore) {
       room.teamScore = { A: 0, B: 0 };
@@ -800,37 +869,49 @@ export class RoomManager {
   foldPoker(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
-    return foldPoker(room, playerId);
+    const result = foldPoker(room, playerId);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 
   checkPoker(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
-    return checkPoker(room, playerId);
+    const result = checkPoker(room, playerId);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 
   callPoker(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
-    return callPoker(room, playerId);
+    const result = callPoker(room, playerId);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 
   betPoker(playerId: string, amount: number): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
-    return betPoker(room, playerId, amount);
+    const result = betPoker(room, playerId, amount);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 
   raisePoker(playerId: string, amount: number): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
-    return raisePoker(room, playerId, amount);
+    const result = raisePoker(room, playerId, amount);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 
   allInPoker(playerId: string): { error?: string } {
     const room = this.getRoomByPlayer(playerId);
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
-    return allInPoker(room, playerId);
+    const result = allInPoker(room, playerId);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 
   nextPokerHand(playerId: string): { error?: string } {
@@ -838,7 +919,28 @@ export class RoomManager {
     if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
     const host = room.players.find((player) => player.id === playerId);
     if (!host?.isHost) return { error: "Apenas o host pode avançar a mão." };
-    return nextPokerHand(room);
+    const result = nextPokerHand(room);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
+  }
+
+  restartPokerGame(playerId: string): { error?: string } {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room || room.selectedGame !== "texas-holdem") return { error: "Jogo indisponível." };
+    const host = room.players.find((player) => player.id === playerId);
+    if (!host?.isHost) return { error: "Apenas o host pode reiniciar." };
+
+    this.clearPokerTurnTimer(room.code);
+    room.status = "playing";
+    room.currentRound = undefined;
+    room.usedCardIds = [];
+    room.players.filter((player) => player.connected).forEach((player) => {
+      room.score[player.id] = room.score[player.id] ?? 0;
+    });
+    room.gameState = undefined;
+    const result = startPokerGame(room);
+    if (!result.error) this.schedulePokerTurnTimer(room);
+    return result;
   }
 }
 

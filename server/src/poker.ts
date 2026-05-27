@@ -293,6 +293,35 @@ function finishHand(room: RoomState, state: PokerGameState): void {
   ];
   const handLabel = winnerLabels.length > 0 ? ` com ${winnerLabels.join(" / ")}` : "";
   state.lastAction = `${state.winners.map((id) => playerName(room, id)).join(", ")} venceu a mão${handLabel}.`;
+
+  const eliminatedPlayerIds = state.players
+    .filter((player) => player.chips <= 0)
+    .map((player) => player.playerId);
+
+  if (eliminatedPlayerIds.length > 0) {
+    eliminatedPlayerIds.forEach((playerId) => {
+      const eliminated = getPlayer(state, playerId);
+      if (eliminated) eliminated.status = "out";
+    });
+
+    const gameWinnerIds = (state.winners ?? []).filter(
+      (winnerId) => !eliminatedPlayerIds.includes(winnerId)
+    );
+    const fallbackWinnerIds = state.players
+      .filter((player) => player.chips > 0)
+      .map((player) => player.playerId);
+    state.gameWinnerIds = gameWinnerIds.length > 0 ? gameWinnerIds : fallbackWinnerIds;
+    state.eliminatedPlayerIds = eliminatedPlayerIds;
+    state.isGameOver = true;
+
+    state.gameWinnerIds.forEach((winnerId) => {
+      room.score[winnerId] = (room.score[winnerId] ?? 0) + 1;
+    });
+
+    const eliminatedNames = eliminatedPlayerIds.map((id) => playerName(room, id)).join(", ");
+    const gameWinnerNames = state.gameWinnerIds.map((id) => playerName(room, id)).join(", ");
+    state.lastAction = `${eliminatedNames} ficou sem fichas. ${gameWinnerNames} ganhou 1 ponto no placar.`;
+  }
 }
 
 function advanceAfterAction(room: RoomState, state: PokerGameState): void {
@@ -402,9 +431,34 @@ export function startPokerGame(room: RoomState): { error?: string } {
   return startHand(room);
 }
 
+const ACTIVE_BETTING_PHASES = new Set(["preflop", "flop", "turn", "river"]);
+
+export function penalizePokerTurnTimeout(room: RoomState, playerId: string): boolean {
+  const state = getPokerState(room);
+  if (!state || state.isGameOver || room.status !== "playing") return false;
+  if (!ACTIVE_BETTING_PHASES.has(state.phase)) return false;
+  if (state.currentPlayerId !== playerId) return false;
+
+  const player = getPlayer(state, playerId);
+  if (!player || !canAct(player)) return false;
+
+  if (player.currentBet === state.currentBet) {
+    player.hasActed = true;
+    state.lastAction = `${playerName(room, playerId)} ficou sem tempo e deu check.`;
+  } else {
+    player.status = "folded";
+    player.hasActed = true;
+    state.lastAction = `${playerName(room, playerId)} ficou sem tempo e desistiu.`;
+  }
+
+  advanceAfterAction(room, state);
+  return true;
+}
+
 export function nextPokerHand(room: RoomState): { error?: string } {
   const state = getPokerState(room);
   if (!state) return { error: "Poker não iniciado." };
+  if (state.isGameOver) return { error: "A mesa terminou. Reinicie o jogo." };
   if (state.phase !== "hand-ended") return { error: "A mão atual ainda não terminou." };
   return startHand(room, state);
 }
@@ -513,7 +567,7 @@ export function toClientPokerState(room: RoomState, playerId: string): ClientPok
   if (!state) return undefined;
   const localPlayer = getPlayer(state, playerId);
   const callAmount = localPlayer ? Math.max(0, state.currentBet - localPlayer.currentBet) : 0;
-  const localCanAct = !!localPlayer && state.currentPlayerId === playerId && canAct(localPlayer);
+  const localCanAct = !!localPlayer && !state.isGameOver && state.currentPlayerId === playerId && canAct(localPlayer);
   const showAllCards = state.phase === "showdown" || state.phase === "hand-ended";
 
   return {
@@ -543,8 +597,12 @@ export function toClientPokerState(room: RoomState, playerId: string): ClientPok
     currentPlayerId: state.currentPlayerId,
     phase: state.phase,
     winners: state.winners,
+    gameWinnerIds: state.gameWinnerIds,
+    eliminatedPlayerIds: state.eliminatedPlayerIds,
     handResults: state.handResults,
     lastAction: state.lastAction,
+    isGameOver: state.isGameOver,
+    turnDeadlineAt: state.turnDeadlineAt,
     callAmount,
     minBet: state.currentBet > 0 ? state.currentBet + state.minRaise : state.minRaise,
     canCheck: localCanAct && callAmount === 0,

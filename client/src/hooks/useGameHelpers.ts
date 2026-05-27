@@ -1,10 +1,11 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { ClientRoomState } from "@entre-extremos/shared";
 import { useGame } from "../hooks/GameContext";
 
 export function useRoomRedirect(code: string | undefined) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { state } = useGame();
 
   useEffect(() => {
@@ -15,8 +16,10 @@ export function useRoomRedirect(code: string | undefined) {
       navigate(`/game/${state.code}`, { replace: true });
     } else if (state.status === "finished") {
       navigate(`/game-over/${state.code}`, { replace: true });
+    } else if (state.status === "lobby" && location.pathname.startsWith("/game/")) {
+      navigate(`/lobby/${state.code}`, { replace: true });
     }
-  }, [state, code, navigate]);
+  }, [state, code, navigate, location.pathname]);
 }
 
 export function getPlayerName(state: ClientRoomState, playerId: string): string {

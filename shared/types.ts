@@ -252,8 +252,12 @@ export interface PokerGameState {
   currentPlayerId?: string;
   phase: PokerPhase;
   winners?: string[];
+  gameWinnerIds?: string[];
+  eliminatedPlayerIds?: string[];
   handResults?: PokerHandResult[];
   lastAction?: string;
+  isGameOver?: boolean;
+  turnDeadlineAt?: number;
 }
 
 export interface ClientPokerGameState {
@@ -270,8 +274,12 @@ export interface ClientPokerGameState {
   currentPlayerId?: string;
   phase: PokerPhase;
   winners?: string[];
+  gameWinnerIds?: string[];
+  eliminatedPlayerIds?: string[];
   handResults?: PokerHandResult[];
   lastAction?: string;
+  isGameOver?: boolean;
+  turnDeadlineAt?: number;
   callAmount: number;
   minBet: number;
   canCheck: boolean;

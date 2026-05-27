@@ -4,6 +4,8 @@ import type { ClientPokerGameState } from "@entre-extremos/shared";
 interface PokerActionsProps {
   game: ClientPokerGameState;
   localPlayerId: string;
+  secondsLeft?: number;
+  timerIsUrgent?: boolean;
   onFold: () => void;
   onCheck: () => void;
   onCall: () => void;
@@ -15,6 +17,8 @@ interface PokerActionsProps {
 export default function PokerActions({
   game,
   localPlayerId,
+  secondsLeft,
+  timerIsUrgent = false,
   onFold,
   onCheck,
   onCall,
@@ -32,12 +36,20 @@ export default function PokerActions({
   }, [game.minBet, game.currentPlayerId]);
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-950/90 p-3 shadow-xl">
+    <section
+      className={`rounded-xl border bg-slate-950/90 p-3 shadow-xl ${
+        timerIsUrgent ? "border-rose-500/60 ring-1 ring-rose-500/30" : "border-slate-800"
+      }`}
+    >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-100">Ações</p>
-          <p className="text-xs text-slate-400">
-            {acting ? "Sua vez de jogar." : "Aguardando outro jogador."}
+          <p className={`text-xs ${timerIsUrgent ? "font-bold text-rose-300" : "text-slate-400"}`}>
+            {acting
+              ? secondsLeft !== undefined
+                ? `${secondsLeft}s — sua vez de jogar.`
+                : "Sua vez de jogar."
+              : "Aguardando outro jogador."}
           </p>
         </div>
         {game.callAmount > 0 && (

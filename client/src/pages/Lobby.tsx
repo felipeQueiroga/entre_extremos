@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { CARD_THEME_OPTIONS, GAME_OPTIONS } from "@entre-extremos/shared";
 import PlayerList from "../components/PlayerList";
 import RoomChat from "../components/RoomChat";
@@ -20,7 +20,6 @@ const GAME_IMAGES = {
 
 export default function Lobby() {
   const { code } = useParams();
-  const navigate = useNavigate();
   const { state, joinRoom, startGame, joinTeam, error, clearError } = useGame();
   const [copied, setCopied] = useState(false);
 
@@ -171,10 +170,7 @@ export default function Lobby() {
           {isHost(state) && (
             <button
               type="button"
-              onClick={() => {
-                startGame();
-                navigate(`/game/${state.code}`);
-              }}
+              onClick={() => startGame()}
               disabled={!canStart}
               className="w-full rounded-lg bg-emerald-600 py-4 text-lg font-semibold hover:bg-emerald-500 disabled:opacity-40"
             >

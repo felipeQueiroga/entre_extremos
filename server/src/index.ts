@@ -554,7 +554,7 @@ io.on("connection", (socket) => {
   socket.on(CLIENT_EVENTS.POKER_RESTART, () => {
     const playerId = roomManager.getPlayerIdBySocket(socket.id);
     if (!playerId) return;
-    const result = roomManager.restartGame(playerId);
+    const result = roomManager.restartPokerGame(playerId);
     if (result.error) {
       emitError(socket.id, result.error);
       return;
