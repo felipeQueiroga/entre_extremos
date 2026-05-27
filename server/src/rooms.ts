@@ -158,6 +158,9 @@ export class RoomManager {
         this.playerToRoom.set(existing.id, room.code);
         return { room, player: existing };
       }
+      if (room.status !== "lobby") {
+        return { error: "Não foi possível reconectar. Entre novamente pelo lobby." };
+      }
     }
 
     if (connectedCount >= maxPlayers) {

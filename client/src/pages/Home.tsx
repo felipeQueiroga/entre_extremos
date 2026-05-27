@@ -11,7 +11,14 @@ import {
   type SelectedGame,
 } from "@entre-extremos/shared";
 import { useGame } from "../hooks/GameContext";
-import { getStoredName, saveSession } from "../utils/session";
+import { roomPathForState } from "../hooks/useRoomSessionRestore";
+import {
+  getStoredName,
+  getStoredPlayerId,
+  getStoredRoomCode,
+  hasStoredSession,
+  saveSession,
+} from "../utils/session";
 
 const GAME_IMAGES: Record<SelectedGame, string> = {
   "entre-extremos": "/images/ponteiro.png",
@@ -21,9 +28,10 @@ const GAME_IMAGES: Record<SelectedGame, string> = {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { createRoom, joinRoom, error, clearError, connected, connectionError } = useGame();
+  const { createRoom, joinRoom, reconnectRoom, error, clearError, connected, connectionError } =
+    useGame();
   const [name, setName] = useState(getStoredName());
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(() => getStoredRoomCode() ?? "");
   const [loading, setLoading] = useState(false);
   const [selectedGame, setSelectedGame] = useState<SelectedGame>("entre-extremos");
   const [configGame, setConfigGame] = useState<SelectedGame | null>(null);
@@ -78,9 +86,15 @@ export default function Home() {
     setLoading(true);
     clearError();
     try {
-      const state = await joinRoom(code.trim(), name.trim());
-      saveSession(state.playerId, name.trim(), state.code);
-      navigate(`/lobby/${state.code}`);
+      const normalizedCode = code.trim().toUpperCase();
+      const storedId = getStoredPlayerId();
+      const storedCode = getStoredRoomCode();
+      const nextState =
+        storedId && storedCode === normalizedCode
+          ? await reconnectRoom(normalizedCode, storedId)
+          : await joinRoom(normalizedCode, name.trim(), storedId ?? undefined);
+      saveSession(nextState.playerId, name.trim(), nextState.code);
+      navigate(roomPathForState(nextState));
     } finally {
       setLoading(false);
     }
@@ -174,6 +188,11 @@ export default function Home() {
 
         <div className="rounded-2xl bg-slate-900 p-6 ring-1 ring-slate-800">
           <h2 className="mb-4 text-xl font-semibold">Se juntar a uma sala</h2>
+          {hasStoredSession() && name.trim() && (
+            <p className="mb-3 text-sm text-emerald-300">
+              Você tem uma sessão salva — use o mesmo código para voltar à partida.
+            </p>
+          )}
           <label className="mb-2 block text-sm text-slate-400">Código da sala</label>
           <input
             type="text"

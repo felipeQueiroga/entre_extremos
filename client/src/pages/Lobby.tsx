@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { CARD_THEME_OPTIONS, GAME_OPTIONS } from "@entre-extremos/shared";
 import PlayerList from "../components/PlayerList";
@@ -6,11 +6,11 @@ import RoomChat from "../components/RoomChat";
 import { useGame } from "../hooks/GameContext";
 import { isHost, useRoomRedirect } from "../hooks/useGameHelpers";
 import {
-  getStoredPlayerId,
-  getStoredPlayerName,
-  getStoredRoomCode,
-  saveSession,
-} from "../utils/session";
+  RoomSessionFailed,
+  RoomSessionLoading,
+  useRoomSessionFailureHandler,
+  useRoomSessionRestore,
+} from "../hooks/useRoomSessionRestore";
 
 const GAME_IMAGES = {
   "entre-extremos": "/images/ponteiro.png",
@@ -20,35 +20,19 @@ const GAME_IMAGES = {
 
 export default function Lobby() {
   const { code } = useParams();
-  const { state, joinRoom, startGame, joinTeam, error, clearError } = useGame();
+  const { state, startGame, joinTeam, error, clearError } = useGame();
   const [copied, setCopied] = useState(false);
+  const { isLoading, isReady } = useRoomSessionRestore(code);
+  const { reconnectFailed, goHome } = useRoomSessionFailureHandler(error, isLoading);
 
   useRoomRedirect(code);
 
-  useEffect(() => {
-    async function reconnect() {
-      if (state?.code === code?.toUpperCase()) return;
-      const storedCode = getStoredRoomCode();
-      const storedId = getStoredPlayerId();
-      const storedName = getStoredPlayerName();
-      if (storedCode === code?.toUpperCase() && storedId && storedName) {
-        try {
-          const next = await joinRoom(code!, storedName, storedId);
-          saveSession(next.playerId, storedName, next.code);
-        } catch {
-          /* handled by error state */
-        }
-      }
-    }
-    reconnect();
-  }, [code, state, joinRoom]);
+  if (reconnectFailed) {
+    return <RoomSessionFailed onGoHome={goHome} />;
+  }
 
-  if (!state || state.code !== code?.toUpperCase()) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-slate-400">Carregando lobby...</p>
-      </div>
-    );
+  if (!isReady || isLoading || !state) {
+    return <RoomSessionLoading message="Reconectando ao lobby..." />;
   }
 
   const connectedCount = state.players.filter((p) => p.connected).length;

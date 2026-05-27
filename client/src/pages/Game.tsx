@@ -7,14 +7,18 @@ import RoomChat from "../components/RoomChat";
 import ScoreBoard from "../components/ScoreBoard";
 import { useGame } from "../hooks/GameContext";
 import { useRoomRedirect } from "../hooks/useGameHelpers";
-import { getStoredPlayerId, getStoredPlayerName, getStoredRoomCode } from "../utils/session";
+import {
+  RoomSessionFailed,
+  RoomSessionLoading,
+  useRoomSessionFailureHandler,
+  useRoomSessionRestore,
+} from "../hooks/useRoomSessionRestore";
 
 export default function Game() {
   const { code } = useParams();
   const navigate = useNavigate();
   const {
     state,
-    joinRoom,
     submitTheme,
     submitClue,
     submitGuess,
@@ -23,6 +27,8 @@ export default function Game() {
     error,
     clearError,
   } = useGame();
+  const { isLoading, isReady } = useRoomSessionRestore(code);
+  const { reconnectFailed, goHome } = useRoomSessionFailureHandler(error, isLoading);
 
   useRoomRedirect(code);
 
@@ -32,25 +38,12 @@ export default function Game() {
     }
   }, [state, navigate]);
 
-  useEffect(() => {
-    async function reconnect() {
-      if (state?.code === code?.toUpperCase()) return;
-      const storedCode = getStoredRoomCode();
-      const storedId = getStoredPlayerId();
-      const storedName = getStoredPlayerName();
-      if (storedCode === code?.toUpperCase() && storedId && storedName) {
-        await joinRoom(code!, storedName, storedId);
-      }
-    }
-    reconnect();
-  }, [code, state, joinRoom]);
+  if (reconnectFailed) {
+    return <RoomSessionFailed onGoHome={goHome} />;
+  }
 
-  if (!state || state.code !== code?.toUpperCase()) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-slate-400">Carregando partida...</p>
-      </div>
-    );
+  if (!isReady || isLoading || !state) {
+    return <RoomSessionLoading message="Reconectando à partida..." />;
   }
 
   const isFourColors = state.selectedGame === "quatro-cores";

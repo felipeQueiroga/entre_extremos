@@ -1,20 +1,30 @@
 import { useNavigate, useParams } from "react-router-dom";
 import ScoreBoard from "../components/ScoreBoard";
 import { useGame } from "../hooks/GameContext";
-import { getPlayerName } from "../hooks/useGameHelpers";
+import { getPlayerName, useRoomRedirect } from "../hooks/useGameHelpers";
+import {
+  RoomSessionFailed,
+  RoomSessionLoading,
+  useRoomSessionFailureHandler,
+  useRoomSessionRestore,
+} from "../hooks/useRoomSessionRestore";
 import { clearSession } from "../utils/session";
 
 export default function GameOver() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { state, winners, restartGame, leaveRoom } = useGame();
+  const { state, winners, restartGame, leaveRoom, error } = useGame();
+  const { isLoading, isReady } = useRoomSessionRestore(code);
+  const { reconnectFailed, goHome } = useRoomSessionFailureHandler(error, isLoading);
 
-  if (!state || state.code !== code?.toUpperCase()) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-slate-400">Carregando resultado...</p>
-      </div>
-    );
+  useRoomRedirect(code);
+
+  if (reconnectFailed) {
+    return <RoomSessionFailed onGoHome={goHome} />;
+  }
+
+  if (!isReady || isLoading || !state) {
+    return <RoomSessionLoading message="Reconectando ao resultado..." />;
   }
 
   const winnerNames =

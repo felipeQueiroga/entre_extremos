@@ -35,9 +35,36 @@ import {
   type RoomCreatePayload,
   type RoomErrorPayload,
   type RoomJoinPayload,
+  type RoomReconnectPayload,
   type SelectedGame,
 } from "@entre-extremos/shared";
+import { clearSession, getStoredPlayerId, getStoredPlayerName, getStoredRoomCode, saveSession } from "../utils/session";
 import { getSocketUrl, isNgrokHost } from "../utils/socketUrl";
+
+const SOCKET_WAIT_MS = 10000;
+
+function waitForSocket(socket: Socket | null, timeoutMs = SOCKET_WAIT_MS): Promise<Socket> {
+  return new Promise((resolve, reject) => {
+    if (!socket) {
+      reject(new Error("Sem conexão com o servidor."));
+      return;
+    }
+    if (socket.connected) {
+      resolve(socket);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      socket.off("connect", onConnect);
+      reject(new Error("Sem conexão com o servidor."));
+    }, timeoutMs);
+    const onConnect = () => {
+      window.clearTimeout(timer);
+      socket.off("connect", onConnect);
+      resolve(socket);
+    };
+    socket.on("connect", onConnect);
+  });
+}
 
 interface GameContextValue {
   socket: Socket | null;
@@ -58,6 +85,9 @@ interface GameContextValue {
     pokerOptions?: PokerOptions
   ) => Promise<ClientRoomState>;
   joinRoom: (code: string, name: string, playerId?: string) => Promise<ClientRoomState>;
+  reconnectRoom: (code: string, playerId: string) => Promise<ClientRoomState>;
+  restoreSession: (roomCode: string) => Promise<ClientRoomState | null>;
+  restoringSession: boolean;
   leaveRoom: () => void;
   joinTeam: (team: "A" | "B") => void;
   startGame: () => void;
@@ -109,6 +139,9 @@ function emitWithAck<TPayload, TResponse>(
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
+  const stateRef = useRef<ClientRoomState | null>(null);
+  const restoringRef = useRef(false);
+  const restoreSessionRef = useRef<(roomCode: string) => Promise<ClientRoomState | null>>(async () => null);
   const [socketReady, setSocketReady] = useState(false);
   const [connected, setConnected] = useState(false);
   const [state, setState] = useState<ClientRoomState | null>(null);
@@ -116,6 +149,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [winners, setWinners] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [restoringSession, setRestoringSession] = useState(false);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const socketUrl = getSocketUrl();
@@ -135,6 +173,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const onConnect = () => {
       setConnected(true);
       setConnectionError(null);
+      const roomCode = getStoredRoomCode();
+      const playerId = getStoredPlayerId();
+      if (!roomCode || !playerId || restoringRef.current) return;
+      const current = stateRef.current;
+      if (current?.code === roomCode && current.playerId === playerId) return;
+      void restoreSessionRef.current(roomCode);
     };
     const onDisconnect = () => setConnected(false);
     const onConnectError = (err: Error) => {
@@ -214,6 +258,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
       if (!response) throw new Error("Não foi possível criar a sala.");
       setState(response);
+      saveSession(response.playerId, name.trim(), response.code);
       return response;
     },
     [getSocket]
@@ -228,13 +273,66 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
       if (!response) throw new Error("Não foi possível entrar na sala.");
       setState(response);
+      saveSession(response.playerId, name.trim(), response.code);
       return response;
     },
     [getSocket]
   );
 
+  const reconnectRoom = useCallback(async (code: string, playerId: string) => {
+    const socket = await waitForSocket(socketRef.current);
+    const response = await emitWithAck<RoomReconnectPayload, ClientRoomState | null>(
+      socket,
+      CLIENT_EVENTS.ROOM_RECONNECT,
+      { code: code.toUpperCase(), playerId }
+    );
+    if (!response) throw new Error("Não foi possível reconectar à sala.");
+    setState(response);
+    setMessages(response.messages ?? []);
+    if (response.status !== "finished") setWinners([]);
+    saveSession(response.playerId, getStoredPlayerName() ?? "", response.code);
+    return response;
+  }, []);
+
+  const restoreSession = useCallback(async (roomCode: string): Promise<ClientRoomState | null> => {
+    const normalizedCode = roomCode.toUpperCase();
+    const playerId = getStoredPlayerId();
+    if (!playerId) return null;
+
+    const current = stateRef.current;
+    if (current?.code === normalizedCode && current.playerId === playerId) {
+      return current;
+    }
+
+    if (restoringRef.current) {
+      return stateRef.current?.code === normalizedCode ? stateRef.current : null;
+    }
+
+    restoringRef.current = true;
+    setRestoringSession(true);
+    setError(null);
+
+    try {
+      const response = await reconnectRoom(normalizedCode, playerId);
+      return response;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Não foi possível reconectar à sala.";
+      setError(message);
+      return null;
+    } finally {
+      restoringRef.current = false;
+      setRestoringSession(false);
+    }
+  }, [reconnectRoom]);
+
+  useEffect(() => {
+    restoreSessionRef.current = restoreSession;
+  }, [restoreSession]);
+
   const leaveRoom = useCallback(() => {
     socketRef.current?.emit(CLIENT_EVENTS.ROOM_LEAVE);
+    clearSession();
     setState(null);
     setWinners([]);
     setMessages([]);
@@ -410,6 +508,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     clearError,
     createRoom,
     joinRoom,
+    reconnectRoom,
+    restoreSession,
+    restoringSession,
     leaveRoom,
     joinTeam,
     startGame,
